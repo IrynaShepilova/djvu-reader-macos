@@ -31,9 +31,6 @@ export class ReaderComponent implements OnInit, OnDestroy, AfterViewInit {
   constructor(private http: HttpClient) {
     effect(() => {
       this.renderedPages();
-      queueMicrotask(() => {
-        setTimeout(() => this.renderStreamPages());
-      });
     });
 
   }
@@ -276,7 +273,7 @@ export class ReaderComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.document) return;
     if (page < 1) page = 1;
     if (page > this.totalPages) page = this.totalPages;
-    if (page === this.currentPage()) return;
+    // if (page === this.currentPage()) return;
 
     this.ignoreScroll = true;
 
@@ -300,6 +297,10 @@ export class ReaderComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngAfterViewInit() {
     this.pagesContainerRef.nativeElement.addEventListener('scroll', this.onPagesScroll);
+    this.pageCanvases.changes.subscribe(() => {
+      console.log('pageCanvases updated → rendering pages');
+      this.renderStreamPages();
+    });
   }
 
   ngOnDestroy() {
