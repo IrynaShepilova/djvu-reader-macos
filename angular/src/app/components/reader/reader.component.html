@@ -1,0 +1,55 @@
+<div class="reader">
+
+
+  <div class="toolbar">
+    <button class="nav-btn" (click)="goFirstPage()">‹‹</button>
+    <button class="nav-btn" (click)="goPrevPage()">‹</button>
+
+    <div class="page-input">
+      <input
+        type="number"
+        [value]="currentPage()"
+        (change)="onPageInput($event)"
+        min="1"
+        [max]="totalPages"
+      />
+      <span>/ {{ totalPages }}</span>
+    </div>
+
+    <button class="nav-btn" (click)="goNextPage()">›</button>
+    <button class="nav-btn" (click)="goLastPage()">››</button>
+
+  </div>
+  <div class="toolbar helper">
+    helper<br/>
+    <div>currentPage() {{currentPage()}}</div> <br/>
+    <div>ignoreScroll {{ignoreScroll}}</div>
+  </div>
+
+  <div class="pages-container" #pagesContainer>
+    @for (p of renderedPages(); track p.index) {
+      <canvas
+        #pageCanvas
+        class="page-canvas"
+        [class.active-page]="currentPage() === p.index"
+        [attr.data-index]="p.index"
+      ></canvas>
+    }
+  </div>
+
+
+  <aside class="thumbnails" #thumbsContainer>
+    @for (thumb of visibleThumbs(); track thumb.index) {
+      <img
+        class="thumb"
+        [class.active]="currentPage() === thumb.index"
+        [attr.data-page]="thumb.index"
+        [attr.data-index]="thumb.index"
+        [src]="thumb.url"
+        [title]="thumb.index"
+        (click)="onThumbnailClick(thumb.index)"
+      />
+    }
+  </aside>
+
+</div>

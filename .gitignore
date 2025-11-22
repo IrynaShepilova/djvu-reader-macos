@@ -1,0 +1,20 @@
+# Angular
+/dist
+/node_modules
+/.angular
+/.anon
+/.vscode
+/.idea
+
+# Logs
+npm-debug.log
+yarn-error.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
