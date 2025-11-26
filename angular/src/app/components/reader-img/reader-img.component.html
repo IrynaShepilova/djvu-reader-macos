@@ -15,6 +15,18 @@
 
     <button (click)="goNextPage()">›</button>
     <button (click)="goLastPage()">››</button>
+
+    @if (!loadingDone()) {
+      <div class="progress-wrapper">
+        <div class="progress-text">{{ loadingProgress() }}%</div>
+
+        <div class="progress-bar">
+          <div class="progress-fill"
+               [style.width.%]="loadingProgress()"></div>
+        </div>
+      </div>
+    }
+
   </div>
 
 

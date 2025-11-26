@@ -40,6 +40,8 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
   thumbs = signal<{ index: number; url: string }[]>([]);
   currentPage = signal(1);
   allPages = signal<{ index: number; url: string; width: number; height: number }[]>([]);
+  loadingProgress = signal(0);
+  loadingDone = signal(false);
 
 
   async ngOnInit() {
@@ -87,6 +89,8 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
   }
 
   async loadAllPagesAsImagesBatch(batchSize = 10) {
+    if (!this.document) return;
+
     const total = this.totalPages;
     let i = 1;
 
@@ -96,33 +100,41 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
       for (let p = i; p < i + batchSize && p <= total; p++) {
         try {
           const page = await this.document.getPage(p);
-          const img = await page.getImageData();
-          const url = await this.imageDataToUrl(img);
+          const imgData = await page.getImageData();
+          const url = await this.imageDataToUrl(imgData);
 
           batch.push({
             index: p,
             url,
-            width: img.width,
-            height: img.height,
+            width: imgData.width,
+            height: imgData.height
           });
 
-        } catch (e) {
-          console.warn(`Error loading page ${p}`, e);
+        } catch (err) {
+          console.warn(`Error loading page ${p}:`, err);
         }
       }
 
       this.allPages.update(arr => [...arr, ...batch]);
 
+      const loaded = Math.min(i + batchSize - 1, total);
+      this.loadingProgress.set(Math.round((loaded / total) * 100));
+
       i += batchSize;
+
       if (i <= total) {
-        requestIdleCallback(loadBatch);
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(loadBatch);
+        } else {
+          setTimeout(loadBatch, 0);
+        }
+      } else {
+        this.loadingDone.set(true);
       }
     };
 
-    loadBatch();
+    await loadBatch();
   }
-
-
 
   private async imageDataToUrl(imgData: ImageData): Promise<string> {
     const canvas = document.createElement('canvas');
@@ -164,7 +176,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
     this.scrollToActiveThumbnail(1);  }
 
   goLastPage() {
-    const last = this.totalPages;
+    const last = this.allPages().length;
     this.currentPage.set(last);
     this.scrollToPage(last);
     this.scrollToActiveThumbnail(last);  }
