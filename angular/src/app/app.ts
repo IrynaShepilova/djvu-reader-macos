@@ -1,14 +1,12 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { NgFor, AsyncPipe } from '@angular/common';
 import { BookService, Book } from './services/book.service';
 import { Observable } from 'rxjs';
-import { ReaderComponent } from './components/reader/reader.component';
 
 
 @Component({
   selector: 'app-root',
-  imports: [ AsyncPipe, ReaderComponent],
+  imports: [  RouterOutlet ],
   standalone: true,
   templateUrl: './app.html',
   styleUrl: './app.scss',

@@ -1,0 +1,45 @@
+<div class="img-reader">
+  <div class="toolbar">
+    <button (click)="goFirstPage()">‹‹</button>
+    <button (click)="goPrevPage()">‹</button>
+
+    <input #pageInput
+      type="number"
+      [value]="currentPage()"
+      [value]="currentPage()"
+      (focus)="onInputFocus(pageInput)"
+      (change)="onPageInput($event)"
+    />
+
+    <span>/ {{ totalPages }}</span>
+
+    <button (click)="goNextPage()">›</button>
+    <button (click)="goLastPage()">››</button>
+  </div>
+
+
+  <div class="content">
+    <div class="pages">
+      @for (p of allPages(); track p.index) {
+        <img
+          class="page-img"
+          [src]="p.url"
+          [alt]="p.index"
+        />
+      }
+    </div>
+
+    <div class="thumbnails" #thumbsContainer>
+      @for (p of allPages(); track p.index) {
+        <img
+          class="thumb"
+          [class.active]="currentPage() === p.index"
+          [src]="p.url"
+          [attr.data-index]="p.index"
+          [title]="p.index"
+          (click)="onThumbClick(p.index)"
+        />
+      }
+    </div>
+  </div>
+</div>

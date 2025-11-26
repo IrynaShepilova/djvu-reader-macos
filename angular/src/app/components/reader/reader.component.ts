@@ -280,7 +280,6 @@ export class ReaderComponent implements OnInit, OnDestroy, AfterViewInit {
     this.currentPage.set(page);
     this.expandWindowAround(page);
 
-    // this.ignoreScroll = true;
 
     this.scrollToPage(page);
     if (!this.ignoreScroll) {
@@ -298,7 +297,6 @@ export class ReaderComponent implements OnInit, OnDestroy, AfterViewInit {
   ngAfterViewInit() {
     this.pagesContainerRef.nativeElement.addEventListener('scroll', this.onPagesScroll);
     this.pageCanvases.changes.subscribe(() => {
-      console.log('pageCanvases updated → rendering pages');
       this.renderStreamPages();
     });
   }
