@@ -42,25 +42,23 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
   allPages = signal<{ index: number; url: string; width: number; height: number }[]>([]);
   loadingProgress = signal(0);
   loadingDone = signal(false);
+  private cancelLoading = false;
 
 
   async ngOnInit() {
     console.log('reader-img', );
-    const books = await this.loadBooks();
-    if (!books?.length) return;
 
-    await this.loadDocument(books[0]);
-    await this.loadAllPagesAsImagesBatch();
   }
 
-  async loadBooks(): Promise<Book[]> {
-    try {
-      return await this.http
-        .get<Book[]>(`${this.apiBase}/api/books`)
-        .toPromise() || [];
-    } catch {
-      return [];
-    }
+  async open(book: Book) {
+    console.log('open book', book );
+    this.cancelLoading = true;
+    await Promise.resolve();
+    this.cancelLoading = false;
+
+    this.clearAll()
+
+    await this.loadDocument(book);
   }
 
   async loadDocument(book: Book): Promise<void> {
@@ -70,6 +68,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
     console.log('this.document ', this.document );
     this.totalPages = this.getTotalPages(this.document);
     console.log('this.totalPages', this.totalPages);
+    this.loadAllPagesAsImagesBatch();
   }
 
   private getTotalPages(doc: any): number {
@@ -98,6 +97,8 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
       const batch: { index: number; url: string; width: number; height: number }[] = [];
 
       for (let p = i; p < i + batchSize && p <= total; p++) {
+        if (this.cancelLoading) return;
+
         try {
           const page = await this.document.getPage(p);
           const imgData = await page.getImageData();
@@ -264,4 +265,16 @@ export class ReaderImgComponent implements OnInit, AfterViewInit {
   }
 
 
+  private clearAll() {
+    this.document = null;
+    this.totalPages = 0;
+    this.pages.set([]);
+    this.currentPage.set(1);
+    this.loadingProgress.set(0);
+    this.loadingDone.set(false);
+    this.thumbs.set([]);
+    this.allPages.set([]);
+    Promise.resolve();
+    console.log('this', this);
+  }
 }

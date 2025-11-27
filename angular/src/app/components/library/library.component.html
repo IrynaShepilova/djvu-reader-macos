@@ -1,0 +1,20 @@
+<div class="library">
+  <h2>Библиотека</h2>
+
+  <div class="files">
+    @for (b of books(); track b.url) {
+      <div class="file-card" (click)="onSelect(b)">
+        <img
+          class="preview"
+          [src]="(previews() | findPreview: b.url)"
+          alt="preview"
+        />
+
+        <div class="info">
+          <div class="title">{{ b.title || b.url }}</div>
+        </div>
+      </div>
+    }
+  </div>
+  <app-reader-img #reader></app-reader-img>
+</div>
