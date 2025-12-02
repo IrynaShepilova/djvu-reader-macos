@@ -106,13 +106,16 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     input.select();
   }
 
-  scrollToActiveThumbnail(index: number) {
+  scrollToActiveThumbnail(index: number, smooth: boolean = true) {
+    console.log('smooth', smooth);
     const cont = this.thumbsContainerRef?.nativeElement;
     if (!cont) return;
 
     const el = cont.querySelector(`[data-index="${index}"]`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+      });
     }
   }
 
@@ -158,11 +161,12 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   }
 
   focusCurrentPage() {
+    console.log('focusCurrentPage', );
     if (!this.state || !this.state.allPages.length) return;
     const p = this.normalizePage(this.state.currentPage);
     this.state.currentPage = p;
     this.scrollToPage(p, false);
-    this.scrollToActiveThumbnail(p);
+    this.scrollToActiveThumbnail(p, false);
   }
 
 
@@ -178,7 +182,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
         const p = this.normalizePage(this.state.currentPage);
         this.state.currentPage = p;
         this.scrollToPage(p, false);
-        this.scrollToActiveThumbnail(p);
+        this.scrollToActiveThumbnail(p, false);
       });
     }
 
