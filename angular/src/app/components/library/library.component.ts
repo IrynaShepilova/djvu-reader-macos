@@ -4,22 +4,24 @@ import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { Book } from '../../interfaces/book';
 import {FindPreviewPipe} from '../../pipes/find-preview';
-import {ReaderImgComponent} from '../reader-img/reader-img.component';
+import { TabsService } from '../../services/tabs.service';
 
 declare const DjVu: any;
 
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [FindPreviewPipe, ReaderImgComponent],
+  imports: [FindPreviewPipe],
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
 })
 export class LibraryComponent implements OnInit {
 
-  constructor(private http: HttpClient, private router: Router) {}
-  @ViewChild(ReaderImgComponent)
-  reader!: ReaderImgComponent;
+  constructor(
+    private http: HttpClient,
+    private router: Router,
+    private tabsService: TabsService,
+  ) {}
 
 
   private readonly apiBase = environment.apiBase;
@@ -76,11 +78,15 @@ export class LibraryComponent implements OnInit {
   }
 
   open(file: string) {
-    this.router.navigate(['/reader-img', file]);
+    this.router.navigate(['/reader', file]);
   }
 
-  onSelect(book: Book) {
-    console.log('selected book', book);
-    this.reader.open(book);
+  openBook(book: Book) {
+    const tabId = this.tabsService.openBook(book);
+    this.router.navigate(['/reader', tabId]);
+  }
+
+  addBook() {
+
   }
 }

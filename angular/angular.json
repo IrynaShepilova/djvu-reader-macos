@@ -11,10 +11,6 @@
           "type": "component",
           "standalone": true
         },
-        "@schematics/angular:service": {
-          "type": "service",
-          "standalone": true
-        },
         "@schematics/angular:directive": {
           "type": "directive"
         },

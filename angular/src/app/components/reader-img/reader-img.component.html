@@ -5,24 +5,23 @@
 
     <input #pageInput
       type="number"
-      [value]="currentPage()"
-      [value]="currentPage()"
+      [value]="state.currentPage"
       (focus)="onInputFocus(pageInput)"
       (change)="onPageInput($event)"
     />
 
-    <span>/ {{ totalPages }}</span>
+    <span>/ {{ state.totalPages }}</span>
 
     <button (click)="goNextPage()">›</button>
     <button (click)="goLastPage()">››</button>
 
-    @if (!loadingDone()) {
+    @if (!state.loadingDone) {
       <div class="progress-wrapper">
-        <div class="progress-text">{{ loadingProgress() }}%</div>
+        <div class="progress-text">{{ state.loadingProgress }}%</div>
 
         <div class="progress-bar">
           <div class="progress-fill"
-               [style.width.%]="loadingProgress()"></div>
+               [style.width.%]="state.loadingProgress"></div>
         </div>
       </div>
     }
@@ -31,21 +30,22 @@
 
 
   <div class="content">
-    <div class="pages">
-      @for (p of allPages(); track p.index) {
+    <div class="pages" #pagesContainer>
+      @for (p of state.allPages; track p.index) {
         <img
           class="page-img"
           [src]="p.url"
+          [attr.data-index]="p.index"
           [alt]="p.index"
         />
       }
     </div>
 
     <div class="thumbnails" #thumbsContainer>
-      @for (p of allPages(); track p.index) {
+      @for (p of state.allPages; track p.index) {
         <img
           class="thumb"
-          [class.active]="currentPage() === p.index"
+          [class.active]="state.currentPage === p.index"
           [src]="p.url"
           [attr.data-index]="p.index"
           [title]="p.index"

@@ -3,7 +3,7 @@
 
   <div class="files">
     @for (b of books(); track b.url) {
-      <div class="file-card" (click)="onSelect(b)">
+      <div class="file-card" (click)="openBook(b)">
         <img
           class="preview"
           [src]="(previews() | findPreview: b.url)"
@@ -16,5 +16,4 @@
       </div>
     }
   </div>
-  <app-reader-img #reader></app-reader-img>
 </div>

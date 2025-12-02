@@ -3,4 +3,5 @@ export interface Book {
   title: string;
   filename: string;
   url: string;
+  cover?: string;
 }

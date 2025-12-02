@@ -1,0 +1,22 @@
+<div class="tabs-bar">
+
+  <button class="home" (click)="goHome()" title="Library">
+    🏠
+  </button>
+
+  <div class="tabs-scroll">
+
+    @for (tab of tabs$ | async; track tab.id) {
+      <div
+        class="tab"
+        [class.active]="(activeId$ | async) === tab.id"
+        (click)="onActivate(tab.id)"
+        [title]="tab.title"
+      >
+        <span class="title">{{ tab.title }}</span>
+        <button class="close" (click)="onClose(tab.id, $event)">×</button>
+      </div>
+    }
+
+  </div>
+</div>
