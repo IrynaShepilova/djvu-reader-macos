@@ -1,6 +1,6 @@
 # Angular
 /dist
-/node_modules
+node_modules/
 /.angular
 /.anon
 /.vscode
@@ -18,3 +18,4 @@ Thumbs.db
 # Env
 .env
 .env.local
+.env.production

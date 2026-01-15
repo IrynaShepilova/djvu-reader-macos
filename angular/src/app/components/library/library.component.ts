@@ -1,10 +1,13 @@
-import {Component, OnInit, signal, ViewChild} from '@angular/core';
+import {Component, computed, OnInit, signal, ViewChild} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { Book } from '../../interfaces/book';
 import {FindPreviewPipe} from '../../pipes/find-preview';
 import { TabsService } from '../../services/tabs.service';
+import { MatDialog } from '@angular/material/dialog';
+import { DialogComponent } from '../dialog/dialog.component';
+
 
 declare const DjVu: any;
 
@@ -21,6 +24,7 @@ export class LibraryComponent implements OnInit {
     private http: HttpClient,
     private router: Router,
     private tabsService: TabsService,
+    private dialog: MatDialog,
   ) {}
 
 
@@ -28,6 +32,15 @@ export class LibraryComponent implements OnInit {
 
   books = signal<Book[]>([]);
   previews = signal<{ file: string; url: string }[]>([]);
+
+  isScanning = signal(false);
+  scanProgress = signal(0);
+  scanProcessed = signal(0);
+  scanTotal = signal(0);
+  private scanPollTimer: any = null;
+
+  booksCount = computed(() => this.books().length);
+
 
   async ngOnInit() {
     const list = await this.loadBooks();
@@ -89,4 +102,72 @@ export class LibraryComponent implements OnInit {
   addBook() {
 
   }
+
+  async scanLibrary() {
+    if (this.isScanning()) return;
+
+    this.isScanning.set(true);
+    this.scanProgress.set(0);
+    this.scanProcessed.set(0);
+    this.scanTotal.set(0);
+
+    try {
+      await this.http.post(`${this.apiBase}/api/books/scan/start`, {}).toPromise();
+
+      // polling
+      this.scanPollTimer = setInterval(async () => {
+        const st = await this.http
+          .get<any>(`${this.apiBase}/api/books/scan/status`)
+          .toPromise();
+
+        if (!st) return;
+
+        this.scanProgress.set(st.percent ?? 0);
+        this.scanProcessed.set(st.processed ?? 0);
+        this.scanTotal.set(st.total ?? 0);
+
+        if (st.done && !st.running) {
+          clearInterval(this.scanPollTimer);
+          this.scanPollTimer = null;
+
+          this.isScanning.set(false);
+
+          this.dialog.open(DialogComponent, {
+            width: '420px',
+            data: {
+              title: 'Scan complete',
+              message: `Added: ${st.added ?? 0}. Total: ${st.total ?? this.books().length}`,
+              // items: (st.newBooks ?? []).map((b: any) => b.title)
+            }
+          });
+          await this.refreshLibrary();
+        }
+      }, 300);
+
+    } catch (e) {
+      console.error(e);
+      this.isScanning.set(false);
+      if (this.scanPollTimer) {
+        clearInterval(this.scanPollTimer);
+        this.scanPollTimer = null;
+      }
+      this.dialog.open(DialogComponent, {
+        width: '420px',
+        data: {
+          title: 'Scan failed',
+          message: `There was an error scanning the library.`,
+        }
+      });
+
+    }
+  }
+
+
+  async refreshLibrary() {
+    const list = await this.loadBooks();
+    this.books.set(list);
+    this.generatePreviews(list);
+  }
+
+
 }

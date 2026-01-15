@@ -1,14 +1,56 @@
 <div class="library">
   <h2>Библиотека</h2>
 
+<!--  <button class="scan-btn" (click)="scanLibrary()">-->
+<!--    🔍 Найти книги-->
+<!--  </button>-->
+
+<!--  toolbar-->
+  <div class="library-toolbar">
+    <div class="left">
+      <h1 class="title">Library</h1>
+
+      @if (booksCount()) {
+        <span class="meta">({{ booksCount() }} books)</span>
+      }
+
+    </div>
+
+    <div class="right">
+      <button class="btn" (click)="refreshLibrary()" [disabled]="isScanning()">
+        ↻ Refresh
+      </button>
+
+      <button class="btn primary" (click)="scanLibrary()" [disabled]="isScanning()">
+        🔍 Scan
+      </button>
+    </div>
+  </div>
+
+  @if (isScanning()) {
+    <div class="scan-progress">
+      <div class="scan-row">
+        <span>Scanning… {{ scanProgress() }}%</span>
+        <span class="muted">{{ scanProcessed() }}/{{ scanTotal() }}</span>
+      </div>
+
+      <div class="bar">
+        <div class="bar-fill" [style.width.%]="scanProgress()"></div>
+      </div>
+    </div>
+  }
+
+
   <div class="files">
     @for (b of books(); track b.url) {
       <div class="file-card" (click)="openBook(b)">
-        <img
-          class="preview"
-          [src]="(previews() | findPreview: b.url)"
-          alt="preview"
-        />
+        <div class="preview-container">
+          <img
+            class="preview"
+            [src]="(previews() | findPreview: b.url)"
+            alt="preview"
+          />
+        </div>
 
         <div class="info">
           <div class="title">{{ b.title || b.url }}</div>
