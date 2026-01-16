@@ -47,7 +47,8 @@
         <div class="preview-container">
           <img
             class="preview"
-            [src]="(previews() | findPreview: b.url)"
+            [src]="previewMap()[b.id]"
+            loading="lazy"
             alt="preview"
           />
         </div>

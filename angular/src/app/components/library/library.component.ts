@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { Book } from '../../interfaces/book';
-import {FindPreviewPipe} from '../../pipes/find-preview';
 import { TabsService } from '../../services/tabs.service';
 import { MatDialog } from '@angular/material/dialog';
 import { DialogComponent } from '../dialog/dialog.component';
@@ -14,7 +13,7 @@ declare const DjVu: any;
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [FindPreviewPipe],
+  imports: [],
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
 })
@@ -31,7 +30,6 @@ export class LibraryComponent implements OnInit {
   private readonly apiBase = environment.apiBase;
 
   books = signal<Book[]>([]);
-  previews = signal<{ file: string; url: string }[]>([]);
 
   isScanning = signal(false);
   scanProgress = signal(0);
@@ -41,12 +39,17 @@ export class LibraryComponent implements OnInit {
 
   booksCount = computed(() => this.books().length);
 
+  private previewCache = new Map<string, string>(); // book.id -> objectUrl
+  private previewInFlight = new Set<string>();
+  previewMap = signal<Record<string, string>>({});
+
+  private previewsRunId = 0;
 
   async ngOnInit() {
     const list = await this.loadBooks();
     this.books.set(list);
 
-    this.generatePreviews(list);
+    await this.generatePreviews(list);
   }
 
   async loadBooks(): Promise<Book[]> {
@@ -59,36 +62,108 @@ export class LibraryComponent implements OnInit {
     }
   }
 
-  async generatePreviews(list: Book[]) {
-    const result: { file: string; url: string }[] = [];
+  async generatePreviews(list: Book[], concurrency = 3) {
+    const runId = ++this.previewsRunId;
+    const initial: Record<string, string> = {};
 
     for (const b of list) {
-      try {
-        const fileUrl = `${this.apiBase}${b.url}`;
-        const buf = await fetch(decodeURI(fileUrl)).then(r => r.arrayBuffer());
-        const doc = new DjVu.Document(buf);
-        const page1 = await doc.getPage(1);
-        const img = await page1.getImageData();
+      if (b.cover) {
+        initial[b.id] = `${this.apiBase}${b.cover}`;
+        continue;
+      }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        canvas.getContext('2d')!.putImageData(img, 0, 0);
-
-        const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.6));
-        if (!blob) continue;
-
-        const url = URL.createObjectURL(blob);
-
-        result.push({ file: b.url, url });
-
-      } catch (err) {
-        console.warn(`Preview failed:`, err);
+      const cached = this.previewCache.get(b.id);
+      if (cached) {
+        initial[b.id] = cached;
       }
     }
 
-    this.previews.set(result);
+    this.previewMap.set(initial);
+
+    const queue = list.filter(b =>
+      !b.cover &&
+      !this.previewCache.has(b.id) &&
+      !this.previewInFlight.has(b.id)
+    );
+
+    let idx = 0;
+
+    const worker = async () => {
+      while (idx < queue.length) {
+        if (runId !== this.previewsRunId) return; // отмена старого запуска
+
+        const b = queue[idx++];
+        this.previewInFlight.add(b.id);
+
+        try {
+          const url = await this.buildPreview(b);
+          if (runId !== this.previewsRunId) return;
+
+          this.previewCache.set(b.id, url);
+          this.previewMap.update(m => ({ ...m, [b.id]: url }));
+        } catch (e) {
+          console.warn('Preview failed', b, e);
+        } finally {
+          this.previewInFlight.delete(b.id);
+        }
+      }
+    };
+    console.log('queue length', queue.length);
+
+    await Promise.all(Array.from({ length: concurrency }, worker));
   }
+
+  private async buildPreview(b: Book): Promise<string> {
+    const fileUrl = `${this.apiBase}${b.url}`;
+    const buf = await fetch(decodeURI(fileUrl)).then(r => r.arrayBuffer());
+    const doc = new (DjVu as any).Document(buf);
+    const page1 = await doc.getPage(1);
+    const img = await page1.getImageData();
+
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = img.width;
+    srcCanvas.height = img.height;
+    srcCanvas.getContext('2d')!.putImageData(img, 0, 0);
+
+    const targetW = 400;
+    const scale = targetW / img.width;
+    const targetH = Math.max(1, Math.round(img.height * scale));
+
+    const dstCanvas = document.createElement('canvas');
+    dstCanvas.width = targetW;
+    dstCanvas.height = targetH;
+
+    const ctx = dstCanvas.getContext('2d')!;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    ctx.drawImage(srcCanvas, 0, 0, targetW, targetH);
+
+    const blob = await new Promise<Blob | null>(res =>
+      dstCanvas.toBlob(res, 'image/jpeg', 0.55)
+    );
+    if (!blob) throw new Error('toBlob failed');
+
+    try {
+      await this.uploadCover(b.id, blob);
+    } catch (e) {
+      console.warn('Cover upload failed (non-blocking)', e);
+    }
+
+    return URL.createObjectURL(blob);
+  }
+
+  private async uploadCover(bookId: string, blob: Blob): Promise<void> {
+    const fd = new FormData();
+    fd.append('cover', blob, 'cover.jpg');
+
+    await fetch(`${this.apiBase}/api/books/${encodeURIComponent(bookId)}/cover`, {
+      method: 'POST',
+      body: fd,
+    });
+  }
+
+
 
   open(file: string) {
     this.router.navigate(['/reader', file]);
@@ -166,7 +241,7 @@ export class LibraryComponent implements OnInit {
   async refreshLibrary() {
     const list = await this.loadBooks();
     this.books.set(list);
-    this.generatePreviews(list);
+    await this.generatePreviews(list);
   }
 
 

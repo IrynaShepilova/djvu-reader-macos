@@ -11,6 +11,8 @@ const cors = require("cors");
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const multer = require('multer');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
@@ -19,7 +21,6 @@ const scanDirs = [
     path.join(process.env.HOME, 'Downloads'),
     path.join(process.env.HOME, 'Books'),
 ];
-console.log('scanDirs', scanDirs);
 
 let scanState = {
     running: false,
@@ -33,6 +34,12 @@ let scanState = {
 
 const MAX_SCAN_DEPTH = 3;
 
+const libraryFile = resolvePath(process.env.LIBRARY_PATH) || path.join(os.homedir(), '.djvu-reader', 'library.json');
+const coversDir = path.join(path.dirname(libraryFile), 'covers');
+ensureDirExists(coversDir);
+
+const upload = multer({ storage: multer.memoryStorage() });
+
 function resolvePath(p) {
     if (!p) return p;
     if (p.startsWith('~')) {
@@ -41,7 +48,10 @@ function resolvePath(p) {
     return p;
 }
 
-const libraryFile = resolvePath(process.env.LIBRARY_PATH) || path.join(os.homedir(), '.djvu-reader', 'library.json');
+function coverKeyFromId(id) {
+    return crypto.createHash('sha1').update(id).digest('hex');
+}
+
 
 // middlewares
 app.use(cors());
@@ -230,6 +240,36 @@ function scanFolderRecursive(dir, depth = 0) {
 
     return result;
 }
+
+app.post('/api/books/:id/cover', upload.single('cover'), (req, res) => {
+    const id = decodeURIComponent(req.params.id); // это fullPath
+    const items = readLibrary();
+    const book = items.find(b => (b.id || b.fullPath) === id);
+
+    if (!book) return res.status(404).json({ error: 'Book not found' });
+    if (!req.file?.buffer) return res.status(400).json({ error: 'No cover file' });
+
+    const coverKey = coverKeyFromId(id);
+    const coverPath = path.join(coversDir, `${coverKey}.jpg`);
+
+    fs.writeFileSync(coverPath, req.file.buffer);
+
+    const coverUrl = `/api/covers/${coverKey}.jpg`;
+    book.cover = coverUrl;
+    writeLibrary(items);
+
+    res.json({ ok: true, coverUrl });
+});
+
+app.get('/api/covers/:file', (req, res) => {
+    const file = req.params.file;
+    const full = path.join(coversDir, file);
+
+    if (!fs.existsSync(full)) return res.status(404).end();
+
+    res.setHeader('Content-Type', 'image/jpeg');
+    fs.createReadStream(full).pipe(res);
+});
 
 
 app.listen(PORT, () => {
