@@ -26,6 +26,10 @@
     border: 1px solid #ccc;
     overflow: hidden;
     transition: transform .15s, box-shadow .15s;
+    display: flex;
+    flex-direction: column;
+    height: 96%;
+    min-height: 370px;
 
     &:hover {
       transform: translateY(-3px);
@@ -55,15 +59,41 @@
       padding: 8px 10px;
       font-family: Roboto, Verdana, Arial, sans-serif;
       text-align: center;
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
 
       .title {
         font-size: 14px;
         word-wrap: break-word;
-        //font-weight: 600;
-        //overflow: hidden;
-        //text-overflow: ellipsis;
-        //white-space: nowrap;
       }
+
+      .extras {
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 8px;
+      }
+
+      .readProgress {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+
+        .new {
+          border-radius: 14px;
+          padding: 2px 8px;
+          background-color: #999;
+          color: #fff;
+        }
+
+        .progressPercent {
+          font-size: 12px;
+          color: #666;
+        }
+      }
+
     }
   }
 }

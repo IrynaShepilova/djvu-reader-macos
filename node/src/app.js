@@ -271,6 +271,27 @@ app.get('/api/covers/:file', (req, res) => {
     fs.createReadStream(full).pipe(res);
 });
 
+app.patch('/api/books/:id/meta', (req, res) => {
+    const id = decodeURIComponent(req.params.id);
+    const { totalPages } = req.body || {};
+
+    const t = Number(totalPages);
+    if (!Number.isFinite(t) || t < 1) {
+        return res.status(400).json({ error: 'totalPages must be a positive number' });
+    }
+
+    const items = readLibrary();
+    const book = items.find(b => (b.id || b.fullPath) === id);
+
+    if (!book) return res.status(404).json({ error: 'Book not found' });
+
+    book.totalPages = Math.floor(t);
+
+    writeLibrary(items);
+    res.json({ ok: true, id, totalPages: book.totalPages });
+});
+
+
 
 app.listen(PORT, () => {
     console.log(`🚀 Backend running  on http://localhost:${PORT}`);

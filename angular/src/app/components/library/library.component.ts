@@ -54,7 +54,7 @@ export class LibraryComponent implements OnInit {
 
   async ngOnInit() {
     const list = await this.loadBooks();
-    this.books.set(list);
+    this.books.set(this.enrichBooks(list));
 
     await this.generatePreviews(list);
   }
@@ -246,7 +246,7 @@ export class LibraryComponent implements OnInit {
 
   async refreshLibrary() {
     const list = await this.loadBooks();
-    this.books.set(list);
+    this.books.set(this.enrichBooks(list));
     await this.generatePreviews(list);
   }
 
@@ -257,6 +257,27 @@ export class LibraryComponent implements OnInit {
 
   toggleViewMode() {
     this.setViewMode(this.viewMode === 'tile' ? 'list' : 'tile');
+  }
+
+  private enrichBooks(books: Book[]): Book[] {
+    return books.map(b => {
+      const total = Number(b.totalPages);
+
+      const isNew = !Number.isFinite(total) || total < 1;
+
+      if (isNew) {
+        return { ...b, isNew: true, progressPercent: null };
+      }
+
+      const last = this.tabsService.restoreLastPage(b.url) ?? 1;
+      const pct = Math.round((Math.min(last, total) / total) * 100);
+
+      return {
+        ...b,
+        isNew: this.tabsService.restoreLastPage(b.url) == null,
+        progressPercent: Math.max(0, Math.min(100, pct)),
+      };
+    });
   }
 
 }

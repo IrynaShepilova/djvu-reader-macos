@@ -78,6 +78,15 @@
 
         <div class="info">
           <div class="title">{{ b.title || b.url }}</div>
+          <div class="extras">
+            <div class="readProgress">
+              @if (b.progressPercent) {
+                <span class="progressPercent">{{ b.progressPercent }}%</span>
+              } @else {
+                <span class="new">New</span>
+              }
+            </div>
+          </div>
         </div>
       </div>
     }

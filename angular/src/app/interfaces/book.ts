@@ -4,4 +4,8 @@ export interface Book {
   filename: string;
   url: string;
   cover?: string;
+  fullPath?: string;
+  isNew?: boolean;
+  totalPages?: number | null;
+  progressPercent?: number | null;
 }

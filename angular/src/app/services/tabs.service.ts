@@ -121,6 +121,8 @@ export class TabsService {
       state.document = doc;
       state.totalPages = this.getTotalPages(doc);
 
+      this.saveTotalPagesToBackend(tab.book.id, state.totalPages);
+
       await this.loadAllPages(tabId);
 
       state.loadingDone = true;
@@ -276,7 +278,7 @@ export class TabsService {
     return `${this.LS_PAGE_PREFIX}${bookUrl}`;
   }
 
-  private restoreLastPage(bookUrl: string): number | null {
+  restoreLastPage(bookUrl: string): number | null {
     const key = this.pageKey(bookUrl);
     const v = localStorage.getItem(key);
     const n = Number(v);
@@ -322,6 +324,20 @@ export class TabsService {
   setHomeActive() {
     this.activeTabIdSubject.next(null);
     this.persistTabs();
+  }
+
+  async saveTotalPagesToBackend(bookId: string, totalPages: number) {
+    if (!bookId || !totalPages) return;
+
+    try {
+      await fetch(`${environment.apiBase}/api/books/${encodeURIComponent(bookId)}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totalPages }),
+      });
+    } catch (e) {
+      console.warn('Failed to save totalPages:', e);
+    }
   }
 
 

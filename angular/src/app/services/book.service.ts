@@ -6,6 +6,8 @@ export interface Book {
   id: number;
   title: string;
   path: string;
+  totalPages?: number | null;
+  progressPercent?: number | null;
 }
 
 @Injectable({
