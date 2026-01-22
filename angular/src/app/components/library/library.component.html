@@ -14,6 +14,32 @@
     </div>
 
     <div class="right">
+
+      <div class="view-toggle" role="group" aria-label="View mode">
+        @if (viewMode === 'tile') {
+        <button
+          class="btn icon"
+          [class.active]="viewMode === 'tile'"
+          (click)="toggleViewMode()"
+          title="Tile view"
+          type="button"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M240-500v-220h220v220H240Zm0 260v-220h220v220H240Zm260-260v-220h220v220H500Zm0 260v-220h220v220H500ZM320-580h60v-60h-60v60Zm260 0h60v-60h-60v60ZM320-320h60v-60h-60v60Zm260 0h60v-60h-60v60ZM380-580Zm200 0Zm0 200Zm-200 0ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Z"/></svg>
+        </button>
+        } @else {
+          <button
+            class="btn icon"
+            [class.active]="viewMode === 'list'"
+            (click)="toggleViewMode()"
+            title="List view"
+            type="button"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M360-240h440v-107H360v107ZM160-613h120v-107H160v107Zm0 187h120v-107H160v107Zm0 186h120v-107H160v107Zm200-186h440v-107H360v107Zm0-187h440v-107H360v107ZM160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Z"/></svg>
+          </button>
+        }
+      </div>
+
+
       <button class="btn" (click)="refreshLibrary()" [disabled]="isScanning()">
         ↻ Refresh
       </button>
@@ -38,7 +64,7 @@
   }
 
 
-  <div class="files">
+  <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
     @for (b of books(); track b.url) {
       <div class="file-card" (click)="openBook(b)">
         <div class="preview-container">
@@ -56,4 +82,5 @@
       </div>
     }
   </div>
+
 </div>

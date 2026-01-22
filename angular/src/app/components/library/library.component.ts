@@ -10,6 +10,7 @@ import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 
 
 declare const DjVu: any;
+type LibraryViewMode = 'tile' | 'list';
 
 @Component({
   selector: 'app-library',
@@ -47,6 +48,9 @@ export class LibraryComponent implements OnInit {
   previewMap = signal<Record<string, string>>({});
 
   private previewsRunId = 0;
+
+  private readonly LS_VIEW_MODE = 'djvu.library.viewMode.v1';
+  viewMode: LibraryViewMode = (localStorage.getItem(this.LS_VIEW_MODE) as LibraryViewMode) || 'tile';
 
   async ngOnInit() {
     const list = await this.loadBooks();
@@ -246,5 +250,13 @@ export class LibraryComponent implements OnInit {
     await this.generatePreviews(list);
   }
 
+  setViewMode(mode: LibraryViewMode) {
+    this.viewMode = mode;
+    localStorage.setItem(this.LS_VIEW_MODE, mode);
+  }
+
+  toggleViewMode() {
+    this.setViewMode(this.viewMode === 'tile' ? 'list' : 'tile');
+  }
 
 }
