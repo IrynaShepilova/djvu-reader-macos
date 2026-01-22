@@ -1,59 +1,56 @@
-# Angular
+# DJVU Reader for MacOS
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.10.
+A lightweight DJVU reader built with Angular and Node.js.
+Electron integration is planned.
 
-## Development server
+## Features
+- 📚 Library with tile & list views
+- 📖 Reading progress
+- 🗂 Tabs & Home navigation
+- 🔄 Remembers last page
+- ⚡ Fast local scanning
+- 🖼 Cover previews
 
-To start a local development server, run:
+## Tech stack
+- Angular
+- Node.js (Express)
+- DjVu.js
 
-```bash
-ng serve
-```
+### Architecture
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+The reader is designed with extensibility in mind.
 
-## Code scaffolding
+At the moment, it uses a **full render mode**, where all pages are decoded and rendered as images.
+This simplifies navigation, scrolling, and progress calculation.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+For large documents, a **virtual scrolling mode** is planned.
+It will render only visible pages and reuse page containers to reduce memory usage.
 
-```bash
-ng generate component component-name
-```
+The rendering strategy is isolated from the rest of the application, allowing future optimizations without major refactoring.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
-```bash
-ng generate --help
-```
+### Backend
 
-## Building
+A local Node.js (Express) backend is used to handle filesystem-related tasks that are not suitable for the browser:
+- scanning local folders for DJVU files
+- serving files to the reader
+- persisting library metadata (library.json)
+- managing book covers and extracted metadata (e.g. total pages)
 
-To build the project run:
+The application is designed as a local-first app.
 
-```bash
-ng build
-```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Roadmap
+- ⏳ Electron desktop wrapper
+- 📁 Configurable scan folders (add/remove folders, depth control)
+- 🧩 Book actions
+  - rename / edit title and description
+  - manage covers
+  - rescan / refresh metadata (e.g. total pages)
+  - remove from library (without deleting the file)
+- 🏷️ Tags / categories and filtering / sorting
+- 🕘 Recently opened books
+- 🚀 Virtual scrolling renderer for large documents
+- 🔀 Sorting options
 
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+> Status: active development
