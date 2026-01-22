@@ -3,7 +3,7 @@
 node_modules/
 /.angular
 /.anon
-/.vscode
+.vscode
 /.idea
 
 # Logs
