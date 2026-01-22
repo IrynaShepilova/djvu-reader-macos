@@ -6,6 +6,7 @@ import { Book } from '../../interfaces/book';
 import { TabsService } from '../../services/tabs.service';
 import { MatDialog } from '@angular/material/dialog';
 import { DialogComponent } from '../dialog/dialog.component';
+import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 
 
 declare const DjVu: any;
@@ -13,7 +14,9 @@ declare const DjVu: any;
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [],
+  imports: [
+    TabsBarComponent
+  ],
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
 })
@@ -108,7 +111,6 @@ export class LibraryComponent implements OnInit {
         }
       }
     };
-    console.log('queue length', queue.length);
 
     await Promise.all(Array.from({ length: concurrency }, worker));
   }

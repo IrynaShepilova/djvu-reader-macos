@@ -1,7 +1,7 @@
 .img-reader {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc( 100vh - 48px);
 
   .toolbar {
     padding: 0.5rem 1rem;

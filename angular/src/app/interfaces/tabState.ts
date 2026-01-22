@@ -8,6 +8,7 @@ export interface TabState {
   loadingDone: boolean;
   document?: any;
   loading?: boolean;
+  id?: string;
 }
 
 export interface PageImage {

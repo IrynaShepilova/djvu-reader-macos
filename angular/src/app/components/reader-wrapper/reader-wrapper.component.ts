@@ -34,9 +34,19 @@ export class ReaderWrapperComponent implements OnInit {
       if (this.tabId !== tabId) {
         this.tabId = tabId;
         this.state = this.tabsService.getState(tabId);
+        if (!this.state) {
+          this.tabsService.ensureTabState(tabId);
+          this.state = this.tabsService.getState(tabId);
+        }
 
         if (!this.state?.loadingDone && !this.state?.loading) {
           await this.tabsService.loadBook(tabId);
+        }
+
+        const saved = this.tabsService.getSavedPageForTab(tabId);
+        if (this.state && saved) {
+          const max = this.state.totalPages || 1;
+          this.state.currentPage = Math.min(Math.max(1, saved), max);
         }
 
         queueMicrotask(() => {

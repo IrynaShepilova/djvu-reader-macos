@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import {TabState} from '../../interfaces/tabState';
+import { TabsService } from '../../services/tabs.service';
 
 @Component({
   selector: 'app-reader-img',
@@ -16,25 +17,26 @@ import {TabState} from '../../interfaces/tabState';
 })
 export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
 
-  constructor() {
+  constructor(private tabsService : TabsService ) {
   }
 
   @ViewChild('pagesContainer') pagesRef!: ElementRef<HTMLDivElement>;
   @ViewChild('thumbsContainer') thumbsContainerRef!: ElementRef<HTMLDivElement>;
   @Input() state!: TabState;
+  @Input() tabId!: string;
 
   private readonly apiBase = environment.apiBase;
   private prevPageCount = 0;
   private prevTabCurrentPage = 0;
+  private suppressScrollDetect = false;
 
   async ngOnInit() {
-    console.log('reader-img', );
   }
 
 
   onThumbClick(index: number) {
-    console.log('thumb clicked', index);
     this.state.currentPage = index;
+    this.saveCurrentPage();
     this.scrollToPage(index);
   }
 
@@ -50,16 +52,16 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
       if (!el) return;
 
       el.scrollIntoView({
-        behavior: smooth ? 'smooth' : 'auto',
+        behavior: smooth ? 'smooth' : 'instant',
         block: 'start'
       });
-
     });
   }
 
   goFirstPage() {
     this.state.currentPage = this.normalizePage(1);
     this.scrollToPage(this.state.currentPage);
+    this.saveCurrentPage();
     this.scrollToActiveThumbnail(this.state.currentPage);
   }
 
@@ -67,6 +69,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     const last = this.state.allPages.length;
     this.state.currentPage = this.normalizePage(last);
     this.scrollToPage(this.state.currentPage);
+    this.saveCurrentPage();
     this.scrollToActiveThumbnail(this.state.currentPage);
   }
 
@@ -74,6 +77,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     const p = this.normalizePage(this.state.currentPage - 1);
     this.state.currentPage = p;
     this.scrollToPage(p);
+    this.saveCurrentPage();
     this.scrollToActiveThumbnail(p);
   }
 
@@ -81,6 +85,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     const p = this.normalizePage(this.state.currentPage + 1);
     this.state.currentPage = p;
     this.scrollToPage(p);
+    this.saveCurrentPage();
     this.scrollToActiveThumbnail(p);
   }
 
@@ -99,6 +104,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     const p = this.normalizePage(page);
     this.state.currentPage = p;
     this.scrollToPage(p);
+    this.saveCurrentPage();
     this.scrollToActiveThumbnail(p);
   }
 
@@ -107,7 +113,6 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   }
 
   scrollToActiveThumbnail(index: number, smooth: boolean = true) {
-    console.log('smooth', smooth);
     const cont = this.thumbsContainerRef?.nativeElement;
     if (!cont) return;
 
@@ -125,6 +130,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   }
 
   onScroll = () => {
+    if (this.suppressScrollDetect) return;
     this.detectCurrentPageOnScroll();
   };
 
@@ -135,17 +141,18 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     const imgs = Array.from(container.querySelectorAll<HTMLImageElement>('.page-img'));
     if (!imgs.length) return;
 
+    const contRect = container.getBoundingClientRect();
+    const viewportCenter = contRect.top + contRect.height / 2;
+
     let bestIndex = this.normalizePage(this.state.currentPage);
     let bestDist = Infinity;
-    const viewportCenter = window.innerHeight / 2;
 
     for (const img of imgs) {
       const rect = img.getBoundingClientRect();
       const pageCenter = rect.top + rect.height / 2;
       const d = Math.abs(viewportCenter - pageCenter);
 
-      const rawIdx = img.dataset['index'];
-      const idx = Number(rawIdx);
+      const idx = Number(img.dataset['index']);
       if (!Number.isFinite(idx)) continue;
 
       if (d < bestDist) {
@@ -156,18 +163,29 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
 
     if (bestIndex !== this.state.currentPage) {
       this.state.currentPage = this.normalizePage(bestIndex);
+      this.saveCurrentPage();
       this.scrollToActiveThumbnail(this.state.currentPage);
     }
   }
 
   focusCurrentPage() {
-    console.log('focusCurrentPage', );
     if (!this.state || !this.state.allPages.length) return;
+
     const p = this.normalizePage(this.state.currentPage);
     this.state.currentPage = p;
+
+    this.suppressScrollDetect = true;
+
     this.scrollToPage(p, false);
     this.scrollToActiveThumbnail(p, false);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.suppressScrollDetect = false;
+      });
+    });
   }
+
 
 
   ngOnChanges() {
@@ -215,4 +233,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     return p;
   }
 
+  private saveCurrentPage() {
+    this.tabsService.saveCurrentPage(this.tabId, this.state.currentPage);
+  }
 }

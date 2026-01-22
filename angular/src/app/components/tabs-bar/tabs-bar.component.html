@@ -1,6 +1,11 @@
 <div class="tabs-bar">
 
-  <button class="home" (click)="goHome()" title="Library">
+  <button
+    class="home"
+    (click)="goHome()"
+    title="Library"
+    [class.active]="(isHomeActive$ | async) || ((activeId$ | async) === null)"
+  >
     🏠
   </button>
 

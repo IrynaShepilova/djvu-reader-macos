@@ -9,6 +9,11 @@ declare const DjVu: any;
 
 @Injectable({ providedIn: 'root' })
 export class TabsService {
+
+  constructor() {
+    this.restoreTabs();
+  }
+
   private tabsSubject = new BehaviorSubject<Tab[]>([]);
   tabs$ = this.tabsSubject.asObservable();
 
@@ -16,6 +21,11 @@ export class TabsService {
   activeTabId$ = this.activeTabIdSubject.asObservable();
 
   private tabStates = new Map<string, TabState>();
+
+  private readonly LS_TABS = 'djvu.tabs.v1';
+  private readonly LS_ACTIVE = 'djvu.activeTabId.v1';
+  private readonly LS_PAGE_PREFIX = 'djvu.lastPageByBookUrl.v1:'; // key = prefix + book.url
+
 
   get tabs(): Tab[] {
     return this.tabsSubject.value;
@@ -29,6 +39,7 @@ export class TabsService {
     const existing = this.tabs.find(t => t.book.url === book.url);
     if (existing) {
       this.activeTabIdSubject.next(existing.id);
+      this.persistTabs();
       return existing.id;
     }
 
@@ -39,24 +50,25 @@ export class TabsService {
       book,
     };
 
-    this.tabStates.set(id, {
-      pages: [],
-      thumbs: [],
-      allPages: [],
-      currentPage: 1,
-      totalPages: 0,
-      loadingProgress: 0,
-      loadingDone: false,
-      loading: false
-    });
-
+    this.tabStates.set(id, this.createEmptyState(id, book.url));
     this.tabsSubject.next([...this.tabs, newTab]);
     this.activeTabIdSubject.next(id);
+    this.persistTabs();
 
     return id;
   }
 
   closeTab(id: string) {
+    const st = this.tabStates.get(id);
+    if (st) {
+      this.revokeStateUrls(st);
+      st.document = undefined;
+
+      st.allPages = [];
+      st.pages = [];
+      st.thumbs = [];
+    }
+
     const remaining = this.tabs.filter(t => t.id !== id);
     this.tabsSubject.next(remaining);
 
@@ -66,25 +78,40 @@ export class TabsService {
       const next = remaining[remaining.length - 1] || null;
       this.activeTabIdSubject.next(next ? next.id : null);
     }
+
+    this.persistTabs();
   }
+
 
   setActive(id: string) {
     const exists = this.tabs.some(t => t.id === id);
     if (exists) {
       this.activeTabIdSubject.next(id);
     }
+    this.persistTabs();
   }
 
-  async loadBook(tabId: string): Promise<void> {
-    const state = this.tabStates.get(tabId);
+  async loadBook(tabId: string, forceReload = false): Promise<void> {
     const tab = this.tabs.find(t => t.id === tabId);
-    if (!state || !tab) return;
+    if (!tab) return;
 
-    if (state.loadingDone || state.loading) return;
+    const state = this.ensureTabState(tabId);
+    if (!state) return;
+
+    if (state.loading) return;
+
+    if (!forceReload && state.allPages.length > 0) return;
 
     state.loading = true;
     state.loadingProgress = 0;
-    state.allPages = [];
+
+    if (forceReload) {
+      this.revokeStateUrls(state);
+      state.allPages = [];
+      state.document = undefined;
+      state.totalPages = 0;
+      state.loadingDone = false;
+    }
 
     try {
       const fileUrl = `${environment.apiBase}${tab.book.url}`;
@@ -94,7 +121,7 @@ export class TabsService {
       state.document = doc;
       state.totalPages = this.getTotalPages(doc);
 
-      await this.loadAllPages(tabId);  // теперь ждёт ЗАВЕРШЕНИЯ загрузки
+      await this.loadAllPages(tabId);
 
       state.loadingDone = true;
     } catch (err) {
@@ -103,6 +130,19 @@ export class TabsService {
       state.loading = false;
     }
   }
+
+  private revokeStateUrls(state: TabState) {
+    for (const p of state.allPages ?? []) {
+      try { URL.revokeObjectURL(p.url); } catch {}
+    }
+    for (const p of state.pages ?? []) {
+      try { URL.revokeObjectURL(p.url); } catch {}
+    }
+    for (const t of state.thumbs ?? []) {
+      try { URL.revokeObjectURL(t.url); } catch {}
+    }
+  }
+
 
   private getTotalPages(doc: any): number {
     const candidates = [
@@ -188,6 +228,102 @@ export class TabsService {
   getState(tabId: string): TabState | null {
     return this.tabStates.get(tabId) || null;
   }
+
+  private persistTabs() {
+    try {
+      localStorage.setItem(this.LS_TABS, JSON.stringify(this.tabs));
+      localStorage.setItem(this.LS_ACTIVE, JSON.stringify(this.activeTabId));
+    } catch {}
+  }
+
+  private restoreTabs() {
+    try {
+      const tabsRaw = localStorage.getItem(this.LS_TABS);
+      const activeRaw = localStorage.getItem(this.LS_ACTIVE);
+
+      const tabs: Tab[] = tabsRaw ? JSON.parse(tabsRaw) : [];
+      const active: string | null = activeRaw ? JSON.parse(activeRaw) : null;
+
+      this.tabsSubject.next(Array.isArray(tabs) ? tabs : []);
+      this.activeTabIdSubject.next(active);
+
+      for (const t of this.tabsSubject.value) {
+        if (!this.tabStates.has(t.id)) {
+          this.tabStates.set(t.id, this.createEmptyState(t.id, t.book.url));
+        }
+      }
+    } catch {
+      this.tabsSubject.next([]);
+      this.activeTabIdSubject.next(null);
+    }
+  }
+
+  private createEmptyState(tabId: string, bookUrl: string): TabState {
+    return {
+      id: tabId,
+      pages: [],
+      thumbs: [],
+      allPages: [],
+      currentPage: this.restoreLastPage(bookUrl) ?? 1,
+      totalPages: 0,
+      loadingProgress: 0,
+      loadingDone: false,
+      loading: false
+    };
+  }
+
+  private pageKey(bookUrl: string) {
+    return `${this.LS_PAGE_PREFIX}${bookUrl}`;
+  }
+
+  private restoreLastPage(bookUrl: string): number | null {
+    const key = this.pageKey(bookUrl);
+    const v = localStorage.getItem(key);
+    const n = Number(v);
+
+    return Number.isFinite(n) && n >= 1 ? n : null;
+  }
+
+  saveLastPage(bookUrl: string, page: number) {
+    const p = Math.max(1, Math.floor(Number(page) || 1));
+    localStorage.setItem(this.pageKey(bookUrl), String(p));
+  }
+
+  ensureTabState(tabId: string): TabState | null {
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+
+    let state = this.tabStates.get(tabId);
+    if (!state) {
+      state = this.createEmptyState(tabId, tab.book.url);
+      this.tabStates.set(tabId, state);
+    }
+    return state;
+  }
+
+  private getBookUrlByTabId(tabId: string): string | null {
+    const tab = this.tabs.find(t => t.id === tabId);
+    return tab?.book?.url ?? null;
+  }
+
+  saveCurrentPage(tabId: string, page: number) {
+    const tab = this.tabs.find(t => t.id === tabId);
+    const bookUrl = tab?.book?.url;
+    if (!bookUrl) return;
+    this.saveLastPage(bookUrl, page);
+  }
+
+  getSavedPageForTab(tabId: string): number | null {
+    const bookUrl = this.getBookUrlByTabId(tabId);
+    if (!bookUrl) return null;
+    return this.restoreLastPage(bookUrl);
+  }
+
+  setHomeActive() {
+    this.activeTabIdSubject.next(null);
+    this.persistTabs();
+  }
+
 
 
 }

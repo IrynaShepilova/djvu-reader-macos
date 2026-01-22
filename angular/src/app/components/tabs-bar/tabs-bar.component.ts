@@ -4,6 +4,8 @@ import { Router } from '@angular/router';
 import { TabsService } from '../../services/tabs.service';
 import { Observable } from 'rxjs';
 import { Tab } from '../../interfaces/tab';
+import { filter, map, startWith } from 'rxjs';
+import { NavigationEnd } from '@angular/router';
 
 @Component({
   selector: 'app-tabs-bar',
@@ -16,6 +18,7 @@ export class TabsBarComponent implements OnInit {
 
   tabs$!: Observable<Tab[]>;
   activeId$!: Observable<string | null>;
+  isHomeActive$!: Observable<boolean>;
 
   constructor(
     private tabsService: TabsService,
@@ -25,6 +28,22 @@ export class TabsBarComponent implements OnInit {
   ngOnInit() {
     this.tabs$ = this.tabsService.tabs$;
     this.activeId$ = this.tabsService.activeTabId$;
+
+
+    this.isHomeActive$ = this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      startWith(null),
+      map(() => this.router.url.startsWith('/library'))
+    );
+
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd)
+    ).subscribe(() => {
+      if (this.router.url.startsWith('/library')) {
+        this.tabsService.setHomeActive();
+      }
+    });
+
   }
 
   onActivate(tabId: string) {
@@ -44,12 +63,13 @@ export class TabsBarComponent implements OnInit {
       if (next) {
         this.router.navigate(['/reader', next]);
       } else {
-        this.router.navigate(['/library']);
+        this.goHome();
       }
     }
   }
 
   goHome() {
+    this.tabsService.setHomeActive();
     this.router.navigate(['/library']);
   }
 
