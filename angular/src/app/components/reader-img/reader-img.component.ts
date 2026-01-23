@@ -5,12 +5,16 @@ import {
 import { environment } from '../../../environments/environment';
 import {TabState} from '../../interfaces/tabState';
 import { TabsService } from '../../services/tabs.service';
+import {DecimalPipe} from '@angular/common';
+
+type PageLayoutMode = 'single' | 'spread';
+type FitMode = 'none' | 'width' | 'height';
 
 @Component({
   selector: 'app-reader-img',
   standalone: true,
   imports: [
-
+    DecimalPipe
   ],
   templateUrl: './reader-img.component.html',
   styleUrl: './reader-img.component.scss',
@@ -28,7 +32,15 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   private readonly apiBase = environment.apiBase;
   private prevPageCount = 0;
   private prevTabCurrentPage = 0;
-  private suppressScrollDetect = false;
+  suppressScrollDetect = false;
+
+  layoutMode: PageLayoutMode = 'single';
+  fitMode: FitMode = 'none';
+
+  zoom = 1; // 1 = 100%
+  readonly zoomStep = 0.1;
+  readonly zoomMin = 0.3;
+  readonly zoomMax = 3;
 
   async ngOnInit() {
   }
@@ -135,6 +147,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   };
 
   detectCurrentPageOnScroll() {
+    if (!this.state.loadingDone) return;
     const container = this.pagesRef?.nativeElement;
     if (!container) return;
 
@@ -171,10 +184,10 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   focusCurrentPage() {
     if (!this.state || !this.state.allPages.length) return;
 
+    this.suppressScrollDetect = true;
+
     const p = this.normalizePage(this.state.currentPage);
     this.state.currentPage = p;
-
-    this.suppressScrollDetect = true;
 
     this.scrollToPage(p, false);
     this.scrollToActiveThumbnail(p, false);
@@ -185,6 +198,7 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
       });
     });
   }
+
 
 
 
@@ -236,4 +250,34 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   private saveCurrentPage() {
     this.tabsService.saveCurrentPage(this.tabId, this.state.currentPage);
   }
+
+  setLayout(mode: PageLayoutMode) {
+    this.layoutMode = mode;
+    queueMicrotask(() => this.focusCurrentPage());
+  }
+
+  setFit(mode: FitMode) {
+    this.fitMode = mode;
+    queueMicrotask(() => this.focusCurrentPage());
+  }
+
+  zoomIn() {
+    this.setFit('none');
+    this.zoom = Math.min(this.zoomMax, Math.round((this.zoom + this.zoomStep) * 10) / 10);
+  }
+
+  zoomOut() {
+    this.setFit('none');
+    this.zoom = Math.max(this.zoomMin, Math.round((this.zoom - this.zoomStep) * 10) / 10);
+  }
+
+  resetZoom() {
+    this.zoom = 1;
+    this.fitMode = 'none';
+  }
+
+  get readerBusy(): boolean {
+    return !this.state.loadingDone || this.suppressScrollDetect;
+  }
+
 }

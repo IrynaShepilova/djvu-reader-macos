@@ -1,4 +1,7 @@
-<div class="img-reader">
+<div class="img-reader"
+     [class.busy]="readerBusy"
+     [attr.aria-busy]="readerBusy"
+>
   <div class="toolbar">
     <button (click)="goFirstPage()">‹‹</button>
     <button (click)="goPrevPage()">‹</button>
@@ -26,11 +29,83 @@
       </div>
     }
 
+    <div class="toolbar-right">
+      <!-- layout: single/spread -->
+      <button
+        class="tool"
+        [class.active]="layoutMode === 'single'"
+        (click)="setLayout('single')"
+        title="Single page"
+        type="button"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M280-280h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm-80 480q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>
+      </button>
+
+      <button
+        class="tool"
+        [class.active]="layoutMode === 'spread'"
+        (click)="setLayout('spread')"
+        title="Two pages"
+        type="button"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h280v-480H160v480Zm360 0h280v-480H520v480Zm-320-80h200v-80H200v80Zm0-120h200v-80H200v80Zm0-120h200v-80H200v80Zm360 240h200v-80H560v80Zm0-120h200v-80H560v80Zm0-120h200v-80H560v80ZM440-240v-480 480Z"/></svg>
+      </button>
+
+      <span class="sep"></span>
+      <!--    fit width  -->
+      <button
+        class="tool"
+        [class.active]="fitMode === 'width'"
+        (click)="setFit('width')"
+        title="Fit width"
+        type="button"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm0-80h80v-480h-80v480Zm160 0h320v-480H320v480Zm400 0h80v-480h-80v480ZM320-720v480-480Z"/></svg>
+      </button>
+
+      <!-- fit height -->
+      <button
+        class="tool"
+        [class.active]="fitMode === 'height'"
+        (click)="setFit('height')"
+        title="Fit height"
+        type="button"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h480q33 0 56.5 23.5T800-800v640q0 33-23.5 56.5T720-80H240Zm480-80v-640H240v640h480Zm0-640H240h480ZM360-600h240L480-720 360-600Zm120 360 120-120H360l120 120Z"/></svg>
+      </button>
+
+      <span class="sep"></span>
+
+      <!-- zoom -->
+      <button class="tool" (click)="zoomOut()" title="Zoom out" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400ZM280-540v-80h200v80H280Z"/></svg>
+      </button>
+      <span class="zoom">{{ (zoom * 100) | number:'1.0-0' }}%</span>
+      <button class="tool" (click)="zoomIn()" title="Zoom in" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Zm-40-60v-80h-80v-80h80v-80h80v80h80v80h-80v80h-80Z"/></svg>
+      </button>
+      <button
+        class="tool"
+        (click)="resetZoom()"
+        title="Reset zoom"
+        [disabled]="zoom === 1"
+        type="button"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M280-280v-320h-80v-80h160v400h-80Zm160 0v-80h80v80h-80Zm200 0v-320h-80v-80h160v400h-80ZM440-440v-80h80v80h-80Z"/></svg>
+      </button>
+    </div>
+
   </div>
 
 
   <div class="content">
-    <div class="pages" #pagesContainer>
+    <div class="pages" #pagesContainer
+         [class.single]="layoutMode === 'single'"
+         [class.spread]="layoutMode === 'spread'"
+         [class.fit-width]="fitMode === 'width'"
+         [class.fit-height]="fitMode === 'height'"
+         [style.--zoom]="zoom"
+    >
       @for (p of state.allPages; track p.index) {
         <img
           class="page-img"
@@ -54,4 +129,9 @@
       }
     </div>
   </div>
+  @if (readerBusy) {
+    <div class="reader-overlay">
+      <div class="spinner"></div>
+    </div>
+  }
 </div>

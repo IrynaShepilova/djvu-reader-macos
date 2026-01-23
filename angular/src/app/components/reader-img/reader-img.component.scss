@@ -2,11 +2,7 @@
   display: flex;
   flex-direction: column;
   height: calc( 100vh - 48px);
-
-  .toolbar {
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid #ddd;
-  }
+  position: relative;
 
   .content {
     flex: 1;
@@ -32,6 +28,30 @@
         background: white;
       }
     }
+
+    .pages.spread {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      align-items: start;
+
+      .page-img {
+        transform: scale(var(--zoom));
+        transform-origin: top center;
+        max-width: 100%;
+        height: auto;
+      }
+    }
+
+    .pages.fit-width .page-img {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .pages.fit-height .page-img {
+      max-height: calc(100vh - 100px);
+      width: auto;
+    }
+
 
     .thumbnails {
       width: 160px;
@@ -88,9 +108,21 @@
     }
 
     input {
-      width: 60px;
+      width: 40px;
       padding: 4px;
       font-size: 16px;
+    }
+
+    /* Chrome, Safari, Edge */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    /* Firefox */
+    input[type=number] {
+      -moz-appearance: textfield;
     }
 
     .progress-wrapper {
@@ -119,6 +151,63 @@
       background: #4caf50;
       transition: width 0.2s ease;
     }
+
+    .toolbar-right {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool {
+      height: 28px;
+      padding: 0 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .tool:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .tool.active {
+      border-color: #999;
+      background: #f2f2f2;
+    }
+
+    .sep {
+      width: 1px;
+      height: 18px;
+      background: #ddd;
+      margin: 0 4px;
+    }
+
+    .zoom {
+      min-width: 48px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      opacity: 0.85;
+    }
+
   }
 
+}
+
+.img-reader.busy .pages {
+  overflow: hidden;
+}
+
+.reader-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: auto;
+  cursor: wait !important;
 }
