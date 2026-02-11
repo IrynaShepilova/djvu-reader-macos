@@ -84,8 +84,8 @@ function scanAll() {
 }
 
 // test route
-app.get("/", (req, res) => {
-    res.send("📚 Node backend works!");
+app.get("/api/health", (req, res) => {
+    res.json({ ok: true });
 });
 
 // book route
@@ -291,7 +291,20 @@ app.patch('/api/books/:id/meta', (req, res) => {
     res.json({ ok: true, id, totalPages: book.totalPages });
 });
 
+// const angularDist = path.join(__dirname, '..','..', 'angular', 'dist','angular', 'browser');
+const angularDist = path.join(__dirname, 'public');
+const indexHtml = path.join(angularDist, 'index.html');
+if (fs.existsSync(indexHtml)) {
+    app.use(express.static(angularDist));
 
+    app.use((req, res, next) => {
+        if (req.path.startsWith('/api/')) return next();
+        res.sendFile(indexHtml);
+    });
+
+} else {
+    console.warn('[static] index.html not found:', indexHtml);
+}
 
 app.listen(PORT, () => {
     console.log(`🚀 Backend running  on http://localhost:${PORT}`);
