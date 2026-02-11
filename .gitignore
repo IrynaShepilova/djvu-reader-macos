@@ -1,8 +1,23 @@
+#ALL
+node_modules/
+**/node_modules/
+
 # Angular
 /dist
-node_modules/
 /.angular
 /.anon
+
+#Electron
+electron/build/
+electron/build_resources/
+electron/dist/
+electron/node/
+
+#Node
+node/public
+node/src/public/
+
+#IDE
 .vscode
 /.idea
 
@@ -19,3 +34,11 @@ Thumbs.db
 .env
 .env.local
 .env.production
+
+node_modules/
+**/node_modules/
+
+
+node_modules/
+**/node_modules/
+
