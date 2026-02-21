@@ -3,10 +3,22 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "install:node": "npm --prefix ./node install --omit=dev",
+    "build:angular": "npm --prefix angular run build",
+    "copy:angular": "rm -rf node/src/public && mkdir -p node/src/public && cp -R angular/dist/angular/browser/* node/src/public/",
+    "prepare:node": "rm -rf electron/node && cp -R node electron/node",
+    "install:node:prod": "npm --prefix ./node ci --omit=dev",
+    "clean:electron:resources": "rm -rf electron/build_resources",
+    "clean:electron:build": "rm -rf electron/build",
+    "prepare:electron:resources": "npm run clean:electron:resources && mkdir -p electron/build_resources/node electron/build_resources/ui && cp -R node/src electron/build_resources/node/src && cp node/package.json electron/build_resources/node/package.json && (test -f node/package-lock.json && cp node/package-lock.json electron/build_resources/node/package-lock.json || true) && (cd electron/build_resources/node && npm install --omit=dev) && cp -R angular/dist/angular/browser/* electron/build_resources/ui/",
+    "dist:mac": "npm run clean:electron:build && npm run build:angular && npm run prepare:electron:resources && npm --prefix electron run dist && npm run clean:electron:resources"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.3"
+  }
 }

@@ -1,9 +1,49 @@
 {
-  "name": "electron",
+  "name": "djvureader",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "main.js",
+  "private": true,
+
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^26.7.0"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "electron main.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dist": "electron-builder --mac",
+    "pack": "electron-builder --mac --dir"
+  },
+  "build": {
+    "appId": "com.irynashepilova.djvureader",
+    "productName": "Djvu Reader",
+    "directories": {
+      "output": "build"
+    },
+    "files": [
+      "main.js",
+      "config.js",
+      "!build/**"
+    ],
+    "mac": {
+      "category": "public.app-category.books",
+      "target": [
+        "dmg"
+      ],
+      "icon": "resources/icon.icns"
+    },
+    "asar": true,
+    "extraResources": [
+      { "from": "build_resources/node/src", "to": "node/src" },
+      { "from": "build_resources/node/node_modules", "to": "node/node_modules" },
+      { "from": "build_resources/node/package.json", "to": "node/package.json" },
+      { "from": "build_resources/node/package-lock.json", "to": "node/package-lock.json" },
+      { "from": "build_resources/ui", "to": "ui" }
+    ],
+    "dmg": {
+      "icon": "resources/icon.icns"
+    },
+    "electronLanguages": ["en"]
   },
   "keywords": [],
   "author": "",

@@ -84,6 +84,10 @@ function scanAll() {
 }
 
 // test route
+// app.get("/", (req, res) => {
+//     res.send("📚 Node backend works!");
+// });
+
 app.get("/api/health", (req, res) => {
     res.json({ ok: true });
 });
@@ -291,19 +295,24 @@ app.patch('/api/books/:id/meta', (req, res) => {
     res.json({ ok: true, id, totalPages: book.totalPages });
 });
 
-// const angularDist = path.join(__dirname, '..','..', 'angular', 'dist','angular', 'browser');
-const angularDist = path.join(__dirname, 'public');
-const indexHtml = path.join(angularDist, 'index.html');
-if (fs.existsSync(indexHtml)) {
-    app.use(express.static(angularDist));
+const uiDir = process.env.UI_DIR;
 
-    app.use((req, res, next) => {
-        if (req.path.startsWith('/api/')) return next();
-        res.sendFile(indexHtml);
-    });
+if (uiDir) {
+    const indexHtml = path.join(uiDir, 'index.html');
 
+    if (fs.existsSync(indexHtml)) {
+        app.use(express.static(uiDir));
+
+        // SPA fallback (do not catch /api)
+        app.use((req, res, next) => {
+            if (req.path.startsWith('/api/')) return next();
+            res.sendFile(indexHtml);
+        });
+    } else {
+        console.warn('[static] index.html not found:', indexHtml);
+    }
 } else {
-    console.warn('[static] index.html not found:', indexHtml);
+    console.warn('[static] UI_DIR is not set; not serving UI');
 }
 
 app.listen(PORT, () => {
