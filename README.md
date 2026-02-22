@@ -55,7 +55,8 @@ The application is designed as a local-first app.
 
 > Status: active development
 >
-> <img width="1336" height="905" alt="Screenshot 2026-01-23 at 01 21 14" src="https://github.com/user-attachments/assets/ba6dacd2-7533-415d-a799-94211284f740" />
-> <img width="1343" height="908" alt="Screenshot 2026-01-23 at 01 21 34" src="https://github.com/user-attachments/assets/3996b918-5f25-43d1-8b71-b1458f99dfe3" />
+<img width="1330" height="783" alt="Screenshot 2026-02-22 at 02 14 23" src="https://github.com/user-attachments/assets/7661bfdf-3977-4f35-9a53-0574366188f4" />
+<img width="1348" height="783" alt="Screenshot 2026-02-22 at 02 15 29" src="https://github.com/user-attachments/assets/b18aaade-c76a-4d74-9d47-a7314271762b" />
+
 
 
