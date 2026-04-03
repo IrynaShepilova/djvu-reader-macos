@@ -71,37 +71,22 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
   }
 
   goFirstPage() {
-    this.state.currentPage = this.normalizePage(1);
-    this.scrollToPage(this.state.currentPage);
-    this.saveCurrentPage();
-    this.scrollToActiveThumbnail(this.state.currentPage);
+    void this.goToPage(1);
   }
 
   goLastPage() {
-    const last = this.state.allPages.length;
-    this.state.currentPage = this.normalizePage(last);
-    this.scrollToPage(this.state.currentPage);
-    this.saveCurrentPage();
-    this.scrollToActiveThumbnail(this.state.currentPage);
+    void this.goToPage(this.state.totalPages);
   }
 
   goPrevPage() {
-    const p = this.normalizePage(this.state.currentPage - 1);
-    this.state.currentPage = p;
-    this.scrollToPage(p);
-    this.saveCurrentPage();
-    this.scrollToActiveThumbnail(p);
+    void this.goToPage(this.state.currentPage - 1);
   }
 
   goNextPage() {
-    const p = this.normalizePage(this.state.currentPage + 1);
-    this.state.currentPage = p;
-    this.scrollToPage(p);
-    this.saveCurrentPage();
-    this.scrollToActiveThumbnail(p);
+    void this.goToPage(this.state.currentPage + 1);
   }
 
-  onPageInput(event: Event) {
+  async onPageInput(event: Event) {
     const el = event.target as HTMLInputElement;
     let p = Number(el.value);
 
@@ -109,14 +94,17 @@ export class ReaderImgComponent implements OnInit, AfterViewInit, OnChanges, OnD
     if (p > this.state.totalPages) p = this.state.totalPages;
 
     el.value = String(p);
-    this.goToPage(p);
+    await this.goToPage(p);
   }
 
-  goToPage(page: number) {
+  async goToPage(page: number) {
+    console.log('page', page);
     const p = this.normalizePage(page);
     this.state.currentPage = p;
-    this.scrollToPage(p);
     this.saveCurrentPage();
+
+    await this.tabsService.ensurePageWindowLoaded(this.tabId, p, 1);
+    this.scrollToPage(p);
     this.scrollToActiveThumbnail(p);
   }
 

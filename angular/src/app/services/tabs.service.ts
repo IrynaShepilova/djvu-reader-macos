@@ -100,17 +100,19 @@ export class TabsService {
 
     if (state.loading) return;
 
-    if (!forceReload && state.allPages.length > 0) return;
+    if (!forceReload && state.allPages.length > 0 && state.document) return;
 
     state.loading = true;
     state.loadingProgress = 0;
+    state.loadingDone = false;
 
     if (forceReload) {
       this.revokeStateUrls(state);
       state.allPages = [];
+      state.pages = [];
+      state.thumbs = [];
       state.document = undefined;
       state.totalPages = 0;
-      state.loadingDone = false;
     }
 
     try {
@@ -121,11 +123,16 @@ export class TabsService {
       state.document = doc;
       state.totalPages = this.getTotalPages(doc);
 
-      this.saveTotalPagesToBackend(tab.book.id, state.totalPages);
+      await this.saveTotalPagesToBackend(tab.book.id, state.totalPages);
 
-      await this.loadAllPages(tabId);
+      state.currentPage = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
+
+      await this.loadInitialPages(tabId, 2);
 
       state.loadingDone = true;
+
+      void this.loadRemainingPagesInBackground(tabId, 10);
+
     } catch (err) {
       console.error('DjVu load failed:', err);
     } finally {
@@ -211,6 +218,152 @@ export class TabsService {
 
       loadBatch();
     });
+  }
+
+  private async loadInitialPages(tabId: string, radius = 2): Promise<void> {
+    console.log('loadInitialPages', );
+    const state = this.tabStates.get(tabId);
+    if (!state) return;
+    console.log('state.currentPage', state.currentPage);
+
+    const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
+    const indexes: number[] = [];
+
+    indexes.push(current);
+
+    for (let offset = 1; offset <= radius; offset++) {
+      indexes.push(current - offset, current + offset);
+    }
+
+    await this.loadPagesByIndexes(tabId, indexes);
+  }
+
+  private async loadRemainingPagesInBackground(tabId: string, batchSize = 10): Promise<void> {
+    console.log('loadRemainingPagesInBackground', );
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return;
+
+    const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
+    const ordered = this.buildRemainingPageOrder(current, state.totalPages);
+
+    let cursor = 0;
+
+    return new Promise<void>((resolve) => {
+      const loadBatch = async () => {
+        const freshState = this.tabStates.get(tabId);
+        if (!freshState || !freshState.document) {
+          resolve();
+          return;
+        }
+
+        const alreadyLoaded = new Set(freshState.allPages.map(p => p.index));
+        const batch: number[] = [];
+
+        while (cursor < ordered.length && batch.length < batchSize) {
+          const page = ordered[cursor++];
+          if (!alreadyLoaded.has(page)) {
+            batch.push(page);
+          }
+        }
+
+        if (batch.length > 0) {
+          await this.loadPagesByIndexes(tabId, batch);
+        }
+
+        if (cursor < ordered.length) {
+          if ('requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(loadBatch);
+          } else {
+            setTimeout(loadBatch, 0);
+          }
+        } else {
+          resolve();
+        }
+      };
+
+      loadBatch();
+    });
+  }
+
+  private async loadPagesByIndexes(tabId: string, indexes: number[]): Promise<void> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return;
+
+    const existingIndexes = new Set(state.allPages.map(p => p.index));
+
+    for (const rawIndex of indexes) {
+      const p = Math.max(1, Math.min(rawIndex, state.totalPages));
+
+      if (existingIndexes.has(p)) continue;
+
+      try {
+        const page = await state.document.getPage(p);
+        const imgData = await page.getImageData();
+        const url = await this.imageDataToUrl(imgData);
+
+        state.allPages.push({
+          index: p,
+          url,
+          width: imgData.width,
+          height: imgData.height
+        });
+
+        existingIndexes.add(p);
+
+        state.allPages.sort((a, b) => a.index - b.index);
+
+        state.loadingProgress = Math.round((state.allPages.length / state.totalPages) * 100);
+      } catch (err) {
+        console.warn(`Error loading page ${p}:`, err);
+      }
+    }
+  }
+
+  private buildRemainingPageOrder(current: number, total: number): number[] {
+    const result: number[] = [];
+    const seen = new Set<number>();
+
+    const push = (page: number) => {
+      if (page < 1 || page > total || seen.has(page)) return;
+      seen.add(page);
+      result.push(page);
+    };
+
+    push(current);
+
+    for (let offset = 1; offset <= total; offset++) {
+      push(current - offset);
+      push(current + offset);
+    }
+
+    return result;
+  }
+
+  async ensurePageLoaded(tabId: string, pageNumber: number): Promise<boolean> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return false;
+
+    const p = Math.max(1, Math.min(pageNumber, state.totalPages));
+    const exists = state.allPages.some(page => page.index === p);
+
+    if (exists) return true;
+
+    await this.loadPagesByIndexes(tabId, [p]);
+
+    return state.allPages.some(page => page.index === p);
+  }
+
+  async ensurePageWindowLoaded(tabId: string, pageNumber: number, radius = 1): Promise<void> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return;
+
+    const indexes: number[] = [];
+
+    for (let offset = -radius; offset <= radius; offset++) {
+      indexes.push(pageNumber + offset);
+    }
+
+    await this.loadPagesByIndexes(tabId, indexes);
   }
 
   private async imageDataToUrl(imgData: ImageData): Promise<string> {
