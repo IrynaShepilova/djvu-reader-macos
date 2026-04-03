@@ -9,6 +9,7 @@ import { DialogComponent } from '../dialog/dialog.component';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 import { DatePipe } from '@angular/common';
 import {FormsModule} from '@angular/forms';
+import {timestamp} from 'rxjs';
 
 declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
@@ -377,4 +378,5 @@ export class LibraryComponent implements OnInit {
     );
   });
 
+  protected readonly timestamp = timestamp;
 }
