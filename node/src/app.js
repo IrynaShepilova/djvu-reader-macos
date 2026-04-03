@@ -275,13 +275,52 @@ app.get('/api/covers/:file', (req, res) => {
     fs.createReadStream(full).pipe(res);
 });
 
+// app.patch('/api/books/:id/meta', (req, res) => {
+//     const id = decodeURIComponent(req.params.id);
+//     const { totalPages } = req.body || {};
+//
+//     const t = Number(totalPages);
+//     if (!Number.isFinite(t) || t < 1) {
+//         return res.status(400).json({ error: 'totalPages must be a positive number' });
+//     }
+//
+//     const items = readLibrary();
+//     const book = items.find(b => (b.id || b.fullPath) === id);
+//
+//     if (!book) return res.status(404).json({ error: 'Book not found' });
+//
+//     book.totalPages = Math.floor(t);
+//
+//     writeLibrary(items);
+//     res.json({ ok: true, id, totalPages: book.totalPages });
+// });
+
 app.patch('/api/books/:id/meta', (req, res) => {
     const id = decodeURIComponent(req.params.id);
-    const { totalPages } = req.body || {};
+    const { totalPages, lastOpenedAt } = req.body || {};
 
-    const t = Number(totalPages);
-    if (!Number.isFinite(t) || t < 1) {
-        return res.status(400).json({ error: 'totalPages must be a positive number' });
+    const hasTotalPages = totalPages !== undefined && totalPages !== null;
+    const hasLastOpenedAt = lastOpenedAt !== undefined;
+
+    if (!hasTotalPages && !hasLastOpenedAt) {
+        return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    let normalizedTotalPages;
+    if (hasTotalPages) {
+        const t = Number(totalPages);
+        if (!Number.isFinite(t) || t < 1) {
+            return res.status(400).json({ error: 'totalPages must be a positive number' });
+        }
+        normalizedTotalPages = Math.floor(t);
+    }
+
+    if (
+        hasLastOpenedAt &&
+        lastOpenedAt !== null &&
+        (typeof lastOpenedAt !== 'string' || Number.isNaN(Date.parse(lastOpenedAt)))
+    ) {
+        return res.status(400).json({ error: 'lastOpenedAt must be a valid ISO date string or null' });
     }
 
     const items = readLibrary();
@@ -289,10 +328,22 @@ app.patch('/api/books/:id/meta', (req, res) => {
 
     if (!book) return res.status(404).json({ error: 'Book not found' });
 
-    book.totalPages = Math.floor(t);
+    if (hasTotalPages) {
+        book.totalPages = normalizedTotalPages;
+    }
+
+    if (hasLastOpenedAt) {
+        book.lastOpenedAt = lastOpenedAt;
+    }
 
     writeLibrary(items);
-    res.json({ ok: true, id, totalPages: book.totalPages });
+
+    res.json({
+        ok: true,
+        id,
+        totalPages: book.totalPages ?? null,
+        lastOpenedAt: book.lastOpenedAt ?? null,
+    });
 });
 
 const uiDir = process.env.UI_DIR;

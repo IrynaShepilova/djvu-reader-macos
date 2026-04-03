@@ -1,6 +1,46 @@
 .library {
   padding: 0 20px 20px 20px;
 
+  .sort-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+
+  .sort-trigger {
+    padding: 8px 12px;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  .sort-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 120px;
+    border: 1px solid #d0d0d0;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    padding: 6px;
+    z-index: 20;
+  }
+
+  .sort-option {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .sort-option:hover {
+    background: #f3f4f6;
+  }
+
   .files {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -78,8 +118,9 @@
 
       .readProgress {
         display: inline-flex;
-        align-items: center;
-        gap: 8px;
+        flex-direction: column;
+        align-items: flex-start;
+        //gap: 8px;
 
         .new {
           border-radius: 14px;
@@ -89,6 +130,10 @@
         }
 
         .progressPercent {
+          font-size: 12px;
+          color: #666;
+        }
+        .lastOpenedAt {
           font-size: 12px;
           color: #666;
         }

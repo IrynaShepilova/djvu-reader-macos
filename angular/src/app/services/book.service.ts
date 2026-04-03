@@ -1,14 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-
-export interface Book {
-  id: number;
-  title: string;
-  path: string;
-  totalPages?: number | null;
-  progressPercent?: number | null;
-}
+import { Book } from '../interfaces/book';
 
 @Injectable({
   providedIn: 'root'

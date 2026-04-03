@@ -8,4 +8,6 @@ export interface Book {
   isNew?: boolean;
   totalPages?: number | null;
   progressPercent?: number | null;
+  lastOpenedAt?: string | null;
+  category?: string | null;
 }

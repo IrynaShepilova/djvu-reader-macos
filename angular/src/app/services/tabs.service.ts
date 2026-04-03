@@ -39,7 +39,7 @@ export class TabsService {
     const existing = this.tabs.find(t => t.book.url === book.url);
     if (existing) {
       this.activeTabIdSubject.next(existing.id);
-      this.persistTabs();
+      this.markBookOpened(existing.book);
       return existing.id;
     }
 
@@ -47,13 +47,14 @@ export class TabsService {
     const newTab: Tab = {
       id,
       title: book.title,
-      book,
+      book: { ...book },
     };
 
     this.tabStates.set(id, this.createEmptyState(id, book.url));
     this.tabsSubject.next([...this.tabs, newTab]);
     this.activeTabIdSubject.next(id);
-    this.persistTabs();
+
+    this.markBookOpened(newTab.book);
 
     return id;
   }
@@ -84,11 +85,25 @@ export class TabsService {
 
 
   setActive(id: string) {
-    const exists = this.tabs.some(t => t.id === id);
-    if (exists) {
-      this.activeTabIdSubject.next(id);
-    }
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab) return;
+
+    this.activeTabIdSubject.next(id);
+    this.markBookOpened(tab.book);
+  }
+
+  private touchActiveBook(tabId: string | null) {
+    if (!tabId) return;
+
+    const tab = this.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    const nowIso = new Date().toISOString();
+
+    tab.book.lastOpenedAt = nowIso;
     this.persistTabs();
+
+    void this.saveBookMetaToBackend(tab.book.id, { lastOpenedAt: nowIso });
   }
 
   async loadBook(tabId: string, forceReload = false): Promise<void> {
@@ -221,10 +236,8 @@ export class TabsService {
   }
 
   private async loadInitialPages(tabId: string, radius = 2): Promise<void> {
-    console.log('loadInitialPages', );
     const state = this.tabStates.get(tabId);
     if (!state) return;
-    console.log('state.currentPage', state.currentPage);
 
     const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
     const indexes: number[] = [];
@@ -239,7 +252,6 @@ export class TabsService {
   }
 
   private async loadRemainingPagesInBackground(tabId: string, batchSize = 10): Promise<void> {
-    console.log('loadRemainingPagesInBackground', );
     const state = this.tabStates.get(tabId);
     if (!state || !state.document) return;
 
@@ -407,10 +419,19 @@ export class TabsService {
           this.tabStates.set(t.id, this.createEmptyState(t.id, t.book.url));
         }
       }
+
+      this.touchActiveBook(active);
     } catch {
       this.tabsSubject.next([]);
       this.activeTabIdSubject.next(null);
     }
+  }
+
+  private markBookOpened(book: Book) {
+    const nowIso = new Date().toISOString();
+    book.lastOpenedAt = nowIso;
+    this.persistTabs();
+    void this.saveBookMetaToBackend(book.id, { lastOpenedAt: nowIso });
   }
 
   private createEmptyState(tabId: string, bookUrl: string): TabState {
@@ -482,17 +503,29 @@ export class TabsService {
   async saveTotalPagesToBackend(bookId: string, totalPages: number) {
     if (!bookId || !totalPages) return;
 
+    await this.saveBookMetaToBackend(bookId, { totalPages });
+  }
+
+  async saveBookMetaToBackend(
+    bookId: string,
+    patch: {
+      totalPages?: number | null;
+      lastOpenedAt?: string | null;
+    }
+  ) {
+    if (!bookId) return;
+    console.log('patch', patch);
+
     try {
       await fetch(`${environment.apiBase}/api/books/${encodeURIComponent(bookId)}/meta`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ totalPages }),
+        body: JSON.stringify(patch),
       });
     } catch (e) {
-      console.warn('Failed to save totalPages:', e);
+      console.warn('Failed to save book meta:', e);
     }
   }
-
 
 
 }

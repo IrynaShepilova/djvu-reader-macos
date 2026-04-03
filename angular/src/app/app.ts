@@ -1,7 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { BookService, Book } from './services/book.service';
+import { BookService } from './services/book.service';
 import { Observable } from 'rxjs';
+import { Book } from './interfaces/book';
 
 
 @Component({

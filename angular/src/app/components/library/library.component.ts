@@ -1,4 +1,4 @@
-import {Component, computed, OnInit, signal, ViewChild} from '@angular/core';
+import {Component, computed, OnInit, signal, ViewChild, WritableSignal, ElementRef , HostListener, inject} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
@@ -7,16 +7,20 @@ import { TabsService } from '../../services/tabs.service';
 import { MatDialog } from '@angular/material/dialog';
 import { DialogComponent } from '../dialog/dialog.component';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
-
+import { DatePipe } from '@angular/common';
+import {FormsModule} from '@angular/forms';
 
 declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
+type SortMode = 'default' | 'lastOpened' | 'title' | 'category';
 
 @Component({
   selector: 'app-library',
   standalone: true,
   imports: [
-    TabsBarComponent
+    TabsBarComponent,
+    DatePipe,
+    FormsModule,
   ],
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
@@ -50,13 +54,46 @@ export class LibraryComponent implements OnInit {
   private previewsRunId = 0;
 
   private readonly LS_VIEW_MODE = 'djvu.library.viewMode.v1';
+  private readonly LS_SORT = 'library.sortMode.v1';
   viewMode: LibraryViewMode = (localStorage.getItem(this.LS_VIEW_MODE) as LibraryViewMode) || 'tile';
+  readonly sortMode = signal<SortMode>('default');
+  sortOptions = [
+    { value: 'default' as SortMode, label: 'Default' },
+    { value: 'lastOpened' as SortMode, label: 'Last opened' },
+    { value: 'title' as SortMode, label: 'Title' },
+    { value: 'category' as SortMode, label: 'Category' },
+  ];
+  sortMenuOpen = false;
+
+  private readonly el = inject(ElementRef<HTMLElement>);
+
+  @ViewChild('sortDropdownRoot', { static: true })
+  sortDropdownRoot!: ElementRef<HTMLElement>;
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (!this.sortMenuOpen) return;
+    const target = event.target as Node | null;
+    if (!target) return;
+
+    console.log('target', target);
+
+    const clickedInside = this.sortDropdownRoot.nativeElement.contains(target);
+
+    if (!clickedInside) {
+      this.sortMenuOpen =false;
+    }
+  }
 
   async ngOnInit() {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
 
     await this.generatePreviews(list);
+    const saved = localStorage.getItem(this.LS_SORT);
+    if (saved) {
+      this.sortMode.set(saved as SortMode);
+    }
   }
 
   async loadBooks(): Promise<Book[]> {
@@ -279,5 +316,68 @@ export class LibraryComponent implements OnInit {
       };
     });
   }
+
+  readonly sortedBooks = computed(() =>
+    this.sortBooks(this.books(), this.sortMode())
+  );
+
+  private sortBooks(books: Book[], mode: SortMode): Book[] {
+    const list = [...books];
+
+    switch (mode) {
+      case 'lastOpened':
+        return list.sort(this.compareByLastOpened);
+
+      case 'title':
+        return list.sort(this.compareByTitle);
+
+      case 'category':
+        return list.sort(this.compareByCategory);
+
+      case 'default':
+      default:
+        return list;
+    }
+  }
+
+  private compareByLastOpened = (a: Book, b: Book): number => {
+    const aTime = a.lastOpenedAt ? new Date(a.lastOpenedAt).getTime() : 0;
+    const bTime = b.lastOpenedAt ? new Date(b.lastOpenedAt).getTime() : 0;
+    return bTime - aTime;
+  };
+
+  private compareByTitle = (a: Book, b: Book): number => {
+    return a.title.localeCompare(b.title);
+  };
+
+  private compareByCategory = (a: Book, b: Book): number => {
+    const aCategory = a.category ?? '';
+    const bCategory = b.category ?? '';
+
+    const categoryCompare = aCategory.localeCompare(bCategory);
+    if (categoryCompare !== 0) return categoryCompare;
+
+    return a.title.localeCompare(b.title);
+  };
+
+  toggleSortMenu() {
+    console.log('toggleSortMenu', );
+    this.sortMenuOpen = !this.sortMenuOpen;
+  }
+
+  setSortMode(mode: SortMode) {
+    this.sortMode.set(mode);
+    this.toggleSortMenu();
+    localStorage.setItem(this.LS_SORT, mode);
+  }
+
+  readonly sortLabel = computed(() => {
+    const value = this.sortMode();
+
+    return (
+      this.sortOptions.find(option => option.value === value)?.label
+      ?? 'Default'
+    );
+  });
 
 }

@@ -15,6 +15,32 @@
 
     <div class="right">
 
+      <div class="sortBy">
+        <div class="sort-dropdown" #sortDropdownRoot>
+          <button
+            type="button"
+            class="sort-trigger"
+            (click)="toggleSortMenu()"
+          >
+            Sort: {{ sortLabel() }}
+          </button>
+
+          @if (sortMenuOpen) {
+            <div class="sort-menu" >
+              @for (option of sortOptions; track option.value) {
+              <button
+                type="button"
+                class="sort-option"
+                (click)="setSortMode(option.value)"
+              >
+                {{ option.label }}
+              </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
       <div class="view-toggle" role="group" aria-label="View mode">
         @if (viewMode === 'tile') {
         <button
@@ -65,7 +91,7 @@
 
 
   <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
-    @for (b of books(); track b.url) {
+    @for (b of sortedBooks(); track b.url) {
       <div class="file-card" (click)="openBook(b)">
         <div class="preview-container">
           <img
@@ -81,6 +107,7 @@
           <div class="extras">
             <div class="readProgress">
               @if (b.progressPercent) {
+                <span class="lastOpenedAt">{{ b.lastOpenedAt | date: 'd MMM y, HH:mm' }}</span>
                 <span class="progressPercent">{{ b.progressPercent }}%</span>
               } @else {
                 <span class="new">New</span>
