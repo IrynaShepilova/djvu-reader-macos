@@ -16,13 +16,16 @@
     <div class="right">
 
       <div class="sortBy">
+        <span class="sortLabel">
+          Sort by:
+        </span>
         <div class="sort-dropdown" #sortDropdownRoot>
           <button
             type="button"
             class="sort-trigger"
             (click)="toggleSortMenu()"
           >
-            Sort: {{ sortLabel() }}
+            {{ sortLabel() }}
           </button>
 
           @if (sortMenuOpen) {

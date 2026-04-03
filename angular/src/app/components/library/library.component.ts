@@ -76,8 +76,6 @@ export class LibraryComponent implements OnInit {
     const target = event.target as Node | null;
     if (!target) return;
 
-    console.log('target', target);
-
     const clickedInside = this.sortDropdownRoot.nativeElement.contains(target);
 
     if (!clickedInside) {
@@ -361,7 +359,6 @@ export class LibraryComponent implements OnInit {
   };
 
   toggleSortMenu() {
-    console.log('toggleSortMenu', );
     this.sortMenuOpen = !this.sortMenuOpen;
   }
 
