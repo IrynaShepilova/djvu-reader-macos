@@ -1,309 +1,271 @@
 import {
-  Component,
-  ElementRef,
-  ViewChild,
-  ViewChildren,
-  QueryList,
-  OnInit,
-  signal,
-  effect,
-  OnDestroy,
-  AfterViewInit
+  AfterViewInit,
+  Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, ViewChild
 } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Book } from '../../interfaces/book';
 import { environment } from '../../../environments/environment';
+import {TabState} from '../../interfaces/tabState';
+import { TabsService } from '../../services/tabs.service';
+import {DecimalPipe} from '@angular/common';
 
-declare const DjVu: any;
+type PageLayoutMode = 'single' | 'spread';
+type FitMode = 'none' | 'width' | 'height';
 
 @Component({
   selector: 'app-reader',
   standalone: true,
-  imports: [],
+  imports: [
+    DecimalPipe
+  ],
   templateUrl: './reader.component.html',
-  styleUrl: './reader.component.scss'
+  styleUrl: './reader.component.scss',
 })
-export class ReaderComponent implements OnInit, OnDestroy, AfterViewInit {
-  @ViewChildren('pageCanvas') pageCanvases!: QueryList<ElementRef<HTMLCanvasElement>>;
-  @ViewChild('pagesContainer') pagesContainerRef!: ElementRef<HTMLDivElement>;
-  @ViewChild('thumbsContainer') thumbsContainerRef!: ElementRef<HTMLDivElement>;
+export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
 
-  constructor(private http: HttpClient) {
-    effect(() => {
-      this.renderedPages();
-    });
-
+  constructor(private tabsService : TabsService ) {
   }
+
+  @ViewChild('pagesContainer') pagesRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('thumbsContainer') thumbsContainerRef!: ElementRef<HTMLDivElement>;
+  @Input() state!: TabState;
+  @Input() tabId!: string;
 
   private readonly apiBase = environment.apiBase;
-  private document: any;
-  currentPage = signal(1);
-  visibleThumbs = signal<{ index: number; url: string }[]>([]);
-  renderedPages = signal<{ index: number }[]>([]);
+  private prevPageCount = 0;
+  private prevTabCurrentPage = 0;
+  suppressScrollDetect = false;
 
-  totalPages = 0;
+  layoutMode: PageLayoutMode = 'single';
+  fitMode: FitMode = 'none';
 
-   ignoreScroll = false;
-  private lastUrls: string[] = [];
-  private scrollReleaseTimer: any = null;
+  zoom = 1; // 1 = 100%
+  readonly zoomStep = 0.1;
+  readonly zoomMin = 0.3;
+  readonly zoomMax = 3;
 
   async ngOnInit() {
-    const books = await this.loadBooks();
-    if (!books?.length) return;
-
-    await this.loadDocument(books[0]);
-    this.expandWindowAround(1);
   }
 
-  async loadBooks(): Promise<Book[]> {
-    try {
-      return await this.http
-        .get<Book[]>(`${this.apiBase}/api/books`)
-        .toPromise() || [];
-    } catch (err) {
-      console.error('Failed to load book list:', err);
-      return [];
-    }
+
+  onThumbClick(index: number) {
+    this.state.currentPage = index;
+    this.saveCurrentPage();
+    this.scrollToPage(index);
   }
 
-  async loadDocument(book: Book): Promise<void> {
-    const fileUrl = `${this.apiBase}${book.url}`;
-    const arrayBuffer = await fetch(decodeURI(fileUrl)).then(r => r.arrayBuffer());
-    this.document = new DjVu.Document(arrayBuffer);
-    this.totalPages = this.getTotalPages(this.document);
 
-    this.expandWindowAround(1);
-    await this.generateThumbnailsLazy();
-  }
-
-  private async generateThumbnailsLazy(): Promise<void> {
-    const total = this.totalPages;
-    const batch = 10;
-    let i = 1;
-
-    const load = async () => {
-      const thumbs: { index: number; url: string }[] = [];
-      for (let p = i; p < i + batch && p <= total; p++) {
-        try {
-          const page = await this.document.getPage(p);
-          const img = await page.getImageData();
-          const url = await this.createThumbnailUrl(img, 0.15);
-          thumbs.push({ index: p, url });
-        } catch (err) {
-          console.warn(`There was an error rendering page ${p}:`, err);
-        }
-      }
-
-      this.updateVisibleThumbs([...this.visibleThumbs(), ...thumbs]);
-
-      i += batch;
-      if (i <= total) {
-        if ("requestIdleCallback" in window) {
-          (window as any).requestIdleCallback(load);
-        } else {
-          setTimeout(load, 60);
-        }
-      }
-    };
-
-    await load();
-  }
-
-  private async createThumbnailUrl(img: ImageData, scale = 0.15): Promise<string> {
-    const full = document.createElement('canvas');
-    full.width = img.width;
-    full.height = img.height;
-    full.getContext('2d')!.putImageData(img, 0, 0);
-
-    const small = document.createElement('canvas');
-    small.width = img.width * scale;
-    small.height = img.height * scale;
-    small.getContext('2d')!.drawImage(full, 0, 0, small.width, small.height);
-
-    const blob = await new Promise<Blob | null>(res => small.toBlob(res, 'image/jpeg', 0.6));
-    if (!blob) throw new Error('Thumbnail blob failed.');
-
-    full.width = full.height = 0;
-    small.width = small.height = 0;
-    return URL.createObjectURL(blob);
-  }
-
-  onThumbnailClick(page: number) {
-    console.log('onThumbnailClick pageNumber', page);
-    this.goToPage(page);
-  }
-
-  private scrollToPage(index: number) {
-    console.log('scrollToPAGE index', index);
-    queueMicrotask(() =>
-      setTimeout(() => {
-        const cont = this.pagesContainerRef.nativeElement;
-        const el = cont.querySelector(`[data-index="${index}"]`);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      })
-    );
-  }
-
-  private getTotalPages(doc: any): number {
-    const candidates = [
-      () => doc.getPagesCount?.(),
-      () => doc.getPagesQuantity?.(),
-      () => doc.pagesCount,
-      () => doc.pages?.length
-    ];
-    for (const fn of candidates) {
-      try {
-        const v = fn();
-        if (typeof v === 'number' && v > 0) return v;
-      } catch {}
-    }
-    return 1;
-  }
-
-  private updateVisibleThumbs(list: { index: number; url: string }[]) {
-    this.cleanupUrls(this.lastUrls);
-    this.lastUrls = list.map(t => t.url);
-    this.visibleThumbs.set(list);
-  }
-
-  private cleanupUrls(urls: string[]) {
-    for (const u of urls) {
-      try { URL.revokeObjectURL(u); } catch {}
-    }
-  }
-
-  private scrollToActiveThumbnail(n: number) {
-    console.log('scrollToActiveThumbnail pageNumber', n);
-    console.log('this.ignoreScroll', this.ignoreScroll );
+  scrollToPage(index: number, smooth: boolean = true) {
     queueMicrotask(() => {
-      const cont = this.thumbsContainerRef.nativeElement;
-      const el = cont.querySelector(`[data-index="${n}"]`);
-      console.log('el', el);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      const container = this.pagesRef?.nativeElement;
+      if (!container) return;
 
+      const el = container.querySelector<HTMLImageElement>(
+        `[data-index="${index}"]`
+      );
+      if (!el) return;
+
+      el.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'instant',
+        block: 'start'
+      });
     });
-  }
-
-  private async renderStreamPages() {
-    for (const p of this.renderedPages()) {
-      const ref = this.pageCanvases.find(c => Number(c.nativeElement.dataset['index']) === p.index);
-      if (!ref) continue;
-
-      const canvas = ref.nativeElement;
-      const page = await this.document.getPage(p.index);
-      const img = await page.getImageData();
-
-      canvas.width = img.width;
-      canvas.height = img.height;
-      canvas.getContext('2d')!.putImageData(img, 0, 0);
-    }
-  }
-
-  private expandWindowAround(center: number) {
-    const total = this.totalPages;
-    const items = [];
-    for (let i = center - 2; i <= center + 2; i++) {
-      if (i >= 1 && i <= total) items.push({ index: i });
-    }
-    this.renderedPages.set(items);
-  }
-
-  private onPagesScroll = () => {
-    if (this.ignoreScroll) return;
-
-    const canvases = this.pageCanvases.toArray();
-    if (!canvases.length) return;
-
-    let best: number | null = null;
-    let min = Infinity;
-
-    const contRect = this.pagesContainerRef.nativeElement.getBoundingClientRect();
-
-    for (const ref of canvases) {
-      const el = ref.nativeElement;
-      const r = el.getBoundingClientRect();
-      const dist = Math.abs(r.top + r.height / 2 - (contRect.top + 150));
-      if (dist < min) {
-        min = dist;
-        best = Number(el.dataset['index']);
-      }
-    }
-
-    if (best && best !== this.currentPage()) {
-      this.currentPage.set(best);
-      this.expandWindowAround(best);
-      if (!this.ignoreScroll) {
-        this.scrollToActiveThumbnail(best);
-      }    }
-  };
-
-  goPrevPage() {
-    const t = this.currentPage() - 1;
-    console.log('goPrevPage target', t);
-    this.goToPage(t);
   }
 
   goFirstPage() {
-    this.goToPage(1)
+    void this.goToPage(1);
   }
 
   goLastPage() {
-    console.log('this.totalPages', this.totalPages);
-    this.goToPage(this.totalPages)
+    void this.goToPage(this.state.totalPages);
+  }
+
+  goPrevPage() {
+    void this.goToPage(this.state.currentPage - 1);
   }
 
   goNextPage() {
-    const t = this.currentPage() + 1;
-    console.log('goNextPage target', t);
-    this.goToPage(t);
+    void this.goToPage(this.state.currentPage + 1);
   }
 
-  onPageInput(event: Event) {
+  async onPageInput(event: Event) {
     const el = event.target as HTMLInputElement;
     let p = Number(el.value);
+
     if (!p || p < 1) p = 1;
-    if (p > this.totalPages) p = this.totalPages;
+    if (p > this.state.totalPages) p = this.state.totalPages;
+
     el.value = String(p);
-    this.goToPage(p);
+    await this.goToPage(p);
   }
 
   async goToPage(page: number) {
-    if (!this.document) return;
-    if (page < 1) page = 1;
-    if (page > this.totalPages) page = this.totalPages;
-    // if (page === this.currentPage()) return;
+    console.log('page', page);
+    const p = this.normalizePage(page);
+    this.state.currentPage = p;
+    this.saveCurrentPage();
 
-    this.ignoreScroll = true;
+    await this.tabsService.ensurePageWindowLoaded(this.tabId, p, 1);
+    this.scrollToPage(p);
+    this.scrollToActiveThumbnail(p);
+  }
 
-    this.currentPage.set(page);
-    this.expandWindowAround(page);
+  onInputFocus(input: HTMLInputElement) {
+    input.select();
+  }
 
+  scrollToActiveThumbnail(index: number, smooth: boolean = true) {
+    const cont = this.thumbsContainerRef?.nativeElement;
+    if (!cont) return;
 
-    this.scrollToPage(page);
-    if (!this.ignoreScroll) {
-      this.scrollToActiveThumbnail(page);
+    const el = cont.querySelector(`[data-index="${index}"]`);
+    if (el) {
+      el.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+      });
     }
-
-    if (this.scrollReleaseTimer) clearTimeout(this.scrollReleaseTimer);
-    this.scrollReleaseTimer = setTimeout(() => {
-      console.log('!!!!!! goToPage set timeout set ignoreScroll');
-      this.ignoreScroll = false;
-      this.scrollToActiveThumbnail(page);
-    }, 1000);
   }
 
   ngAfterViewInit() {
-    this.pagesContainerRef.nativeElement.addEventListener('scroll', this.onPagesScroll);
-    this.pageCanvases.changes.subscribe(() => {
-      this.renderStreamPages();
+    const container = this.pagesRef.nativeElement;
+    container.addEventListener('scroll', this.onScroll);
+  }
+
+  onScroll = () => {
+    if (this.suppressScrollDetect) return;
+    this.detectCurrentPageOnScroll();
+  };
+
+  detectCurrentPageOnScroll() {
+    if (!this.state.loadingDone) return;
+    const container = this.pagesRef?.nativeElement;
+    if (!container) return;
+
+    const imgs = Array.from(container.querySelectorAll<HTMLImageElement>('.page-img'));
+    if (!imgs.length) return;
+
+    const contRect = container.getBoundingClientRect();
+    const viewportCenter = contRect.top + contRect.height / 2;
+
+    let bestIndex = this.normalizePage(this.state.currentPage);
+    let bestDist = Infinity;
+
+    for (const img of imgs) {
+      const rect = img.getBoundingClientRect();
+      const pageCenter = rect.top + rect.height / 2;
+      const d = Math.abs(viewportCenter - pageCenter);
+
+      const idx = Number(img.dataset['index']);
+      if (!Number.isFinite(idx)) continue;
+
+      if (d < bestDist) {
+        bestDist = d;
+        bestIndex = idx;
+      }
+    }
+
+    if (bestIndex !== this.state.currentPage) {
+      this.state.currentPage = this.normalizePage(bestIndex);
+      this.saveCurrentPage();
+      this.scrollToActiveThumbnail(this.state.currentPage);
+    }
+  }
+
+  focusCurrentPage() {
+    if (!this.state || !this.state.allPages.length) return;
+
+    this.suppressScrollDetect = true;
+
+    const p = this.normalizePage(this.state.currentPage);
+    this.state.currentPage = p;
+
+    this.scrollToPage(p, false);
+    this.scrollToActiveThumbnail(p, false);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.suppressScrollDetect = false;
+      });
     });
   }
 
+
+
+
+  ngOnChanges() {
+    if (!this.state) return;
+
+    if (!this.state.allPages.length) return;
+
+    if (this.state.allPages.length !== this.prevPageCount) {
+      this.prevPageCount = this.state.allPages.length;
+
+      queueMicrotask(() => {
+        const p = this.normalizePage(this.state.currentPage);
+        this.state.currentPage = p;
+        this.scrollToPage(p, false);
+        this.scrollToActiveThumbnail(p, false);
+      });
+    }
+
+    if (this.state.currentPage !== this.prevTabCurrentPage) {
+      this.prevTabCurrentPage = this.normalizePage(this.state.currentPage);
+
+      queueMicrotask(() => {
+        this.scrollToActiveThumbnail(this.state.currentPage);
+      });
+    }
+  }
+
   ngOnDestroy() {
-    this.pagesContainerRef?.nativeElement.removeEventListener('scroll', this.onPagesScroll);
+    const container = this.pagesRef?.nativeElement;
+    if (container) {
+      container.removeEventListener('scroll', this.onScroll);
+    }
+  }
+
+  private normalizePage(page: number | null | undefined): number {
+    let p = Number(page);
+
+    if (!Number.isFinite(p) || p < 1) {
+      p = 1;
+    }
+
+    const max = this.state?.totalPages || 1;
+    if (p > max) p = max;
+
+    return p;
+  }
+
+  private saveCurrentPage() {
+    this.tabsService.saveCurrentPage(this.tabId, this.state.currentPage);
+  }
+
+  setLayout(mode: PageLayoutMode) {
+    this.layoutMode = mode;
+    queueMicrotask(() => this.focusCurrentPage());
+  }
+
+  setFit(mode: FitMode) {
+    this.fitMode = mode;
+    queueMicrotask(() => this.focusCurrentPage());
+  }
+
+  zoomIn() {
+    this.setFit('none');
+    this.zoom = Math.min(this.zoomMax, Math.round((this.zoom + this.zoomStep) * 10) / 10);
+  }
+
+  zoomOut() {
+    this.setFit('none');
+    this.zoom = Math.max(this.zoomMin, Math.round((this.zoom - this.zoomStep) * 10) / 10);
+  }
+
+  resetZoom() {
+    this.zoom = 1;
+    this.fitMode = 'none';
+  }
+
+  get readerBusy(): boolean {
+    return !this.state.loadingDone || this.suppressScrollDetect;
   }
 
 }
-

@@ -1,6 +1,6 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { ReaderImgComponent } from '../reader-img/reader-img.component';
+import { ReaderComponent } from '../reader/reader.component';
 import { TabsService } from '../../services/tabs.service';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 import {TabState} from '../../interfaces/tabState';
@@ -8,15 +8,15 @@ import {TabState} from '../../interfaces/tabState';
 @Component({
   selector: 'app-reader-wrapper',
   standalone: true,
-  imports: [ReaderImgComponent, TabsBarComponent],
+  imports: [ReaderComponent, TabsBarComponent],
   templateUrl: './reader-wrapper.component.html',
   styleUrl: './reader-wrapper.component.scss',
 })
 
 export class ReaderWrapperComponent implements OnInit {
 
-  @ViewChild(ReaderImgComponent)
-  readerImg!: ReaderImgComponent;
+  @ViewChild(ReaderComponent)
+  readerImg!: ReaderComponent;
   state: TabState | null = null;
   tabId!: string;
 
