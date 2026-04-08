@@ -20,19 +20,30 @@ const {
 const { readLibrary, writeLibrary } = require('./services/library-store');
 const { getScanState, setScanState } = require('./services/scan-state');
 const { scanAll } = require('./services/scanner');
+const { ensureSettingsFile, getScanFolders, updateScanFolder } = require('./services/settings-store');
 
 const app = express();
 const PORT = 3000;
 
-const scanDirs = [
-    path.join(process.env.HOME, 'Downloads'),
-    path.join(process.env.HOME, 'Books'),
-];
+// const scanDirs = [
+//     path.join(process.env.HOME, 'Downloads'),
+//     path.join(process.env.HOME, 'Books'),
+// ];
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+ensureSettingsFile();
+
 function coverKeyFromId(id) {
     return crypto.createHash('sha1').update(id).digest('hex');
+}
+
+function getEnabledScanPaths() {
+    const folders = getScanFolders();
+
+    return folders
+        .filter(f => f.enabled)
+        .map(f => f.path);
 }
 
 
@@ -47,6 +58,30 @@ app.use(express.json());
 
 app.get("/api/health", (req, res) => {
     res.json({ ok: true });
+});
+
+app.get('/api/scan-folders', (req, res) => {
+    res.json(getScanFolders());
+});
+
+app.patch('/api/scan-folders/:id', (req, res) => {
+    const id = decodeURIComponent(req.params.id);
+    const { enabled } = req.body || {};
+
+    if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean' });
+    }
+
+    const updated = updateScanFolder(id, { enabled });
+
+    if (!updated) {
+        return res.status(404).json({ error: 'Scan folder not found' });
+    }
+
+    res.json({
+        ok: true,
+        folder: updated,
+    });
 });
 
 // book route
@@ -80,7 +115,7 @@ app.get('/api/books/file/:id', (req, res) => {
 });
 
 app.post('/api/books/scan', (req, res) => {
-    const scanned = scanAll(scanDirs);
+    const scanned = scanAll(getEnabledScanPaths());
 
     const current = readLibrary();
 
@@ -124,7 +159,7 @@ app.post('/api/books/scan/start', async (req, res) => {
 async function runScan() {
     let scanState = getScanState();
     try {
-        const scanned = scanAll(scanDirs);
+        const scanned = scanAll(getEnabledScanPaths());
         const current = readLibrary();
 
         const key = (b) => (b.id || b.fullPath).toLowerCase();

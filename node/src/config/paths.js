@@ -21,13 +21,16 @@ function ensureDirExists(dirPath) {
 const libraryFile =
     resolvePath(process.env.LIBRARY_PATH) ||
     path.join(os.homedir(), '.djvu-reader', 'library.json');
+const settingsFile = path.join(path.dirname(libraryFile), 'settings.json');
 
 const coversDir = path.join(path.dirname(libraryFile), 'covers');
 
 ensureDirExists(coversDir);
 
 module.exports = {
+    resolvePath,
     ensureDirExists,
     libraryFile,
+    settingsFile,
     coversDir,
 };
