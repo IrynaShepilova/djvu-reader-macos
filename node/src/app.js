@@ -5,14 +5,21 @@ require('dotenv').config({
         : '.env'
 });
 
-
+// libs
 const express = require("express");
 const cors = require("cors");
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const multer = require('multer');
 const crypto = require('crypto');
+
+// modules
+const {
+    coversDir,
+} = require('./config/paths');
+const { readLibrary, writeLibrary } = require('./services/library-store');
+const { getScanState, setScanState } = require('./services/scan-state');
+const { scanAll } = require('./services/scanner');
 
 const app = express();
 const PORT = 3000;
@@ -22,31 +29,7 @@ const scanDirs = [
     path.join(process.env.HOME, 'Books'),
 ];
 
-let scanState = {
-    running: false,
-    done: false,
-    percent: 0,
-    processed: 0,
-    total: 0,
-    added: 0,
-    message: ''
-};
-
-const MAX_SCAN_DEPTH = 3;
-
-const libraryFile = resolvePath(process.env.LIBRARY_PATH) || path.join(os.homedir(), '.djvu-reader', 'library.json');
-const coversDir = path.join(path.dirname(libraryFile), 'covers');
-ensureDirExists(coversDir);
-
 const upload = multer({ storage: multer.memoryStorage() });
-
-function resolvePath(p) {
-    if (!p) return p;
-    if (p.startsWith('~')) {
-        return path.join(os.homedir(), p.slice(1));
-    }
-    return p;
-}
 
 function coverKeyFromId(id) {
     return crypto.createHash('sha1').update(id).digest('hex');
@@ -56,32 +39,6 @@ function coverKeyFromId(id) {
 // middlewares
 app.use(cors());
 app.use(express.json());
-
-function ensureDirExists(dirPath) {
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-    }
-}
-
-function readLibrary() {
-    try {
-        if (!fs.existsSync(libraryFile)) return [];
-        const raw = fs.readFileSync(libraryFile, 'utf8');
-        const data = JSON.parse(raw);
-        return Array.isArray(data) ? data : [];
-    } catch {
-        return [];
-    }
-}
-
-function writeLibrary(items) {
-    ensureDirExists(path.dirname(libraryFile));
-    fs.writeFileSync(libraryFile, JSON.stringify(items, null, 2), 'utf8');
-}
-
-function scanAll() {
-    return scanDirs.flatMap(dir => scanFolderRecursive(dir, 0));
-}
 
 // test route
 // app.get("/", (req, res) => {
@@ -123,7 +80,7 @@ app.get('/api/books/file/:id', (req, res) => {
 });
 
 app.post('/api/books/scan', (req, res) => {
-    const scanned = scanAll();
+    const scanned = scanAll(scanDirs);
 
     const current = readLibrary();
 
@@ -141,15 +98,15 @@ app.post('/api/books/scan', (req, res) => {
 });
 
 app.get('/api/books/scan/status', (req, res) => {
-    res.json(scanState);
+    res.json(getScanState());
 });
 
 app.post('/api/books/scan/start', async (req, res) => {
-    if (scanState.running) {
+    if (getScanState().running) {
         return res.json({ ok: true, alreadyRunning: true });
     }
 
-    scanState = {
+    setScanState({
         running: true,
         done: false,
         percent: 0,
@@ -157,7 +114,7 @@ app.post('/api/books/scan/start', async (req, res) => {
         total: 0,
         added: 0,
         message: 'Starting…'
-    };
+    });
 
     setImmediate(() => runScan());
 
@@ -165,8 +122,9 @@ app.post('/api/books/scan/start', async (req, res) => {
 });
 
 async function runScan() {
+    let scanState = getScanState();
     try {
-        const scanned = scanAll();
+        const scanned = scanAll(scanDirs);
         const current = readLibrary();
 
         const key = (b) => (b.id || b.fullPath).toLowerCase();
@@ -209,42 +167,6 @@ async function runScan() {
     }
 }
 
-function scanFolderRecursive(dir, depth = 0) {
-    if (depth > MAX_SCAN_DEPTH) return [];
-    if (!fs.existsSync(dir)) return [];
-
-    const result = [];
-    let entries;
-
-    try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-        return result;
-    }
-
-    for (const entry of entries) {
-
-        if (entry.name.startsWith('.')) continue;
-
-        const fullPath = path.join(dir, entry.name);
-
-        if (entry.isFile() && /\.(djvu|djv)$/i.test(entry.name)) {
-            result.push({
-                id: fullPath,
-                fullPath,
-                title: path.parse(entry.name).name,
-                filename: entry.name,
-            });
-        }
-
-        if (entry.isDirectory()) {
-            result.push(...scanFolderRecursive(fullPath, depth + 1));
-        }
-    }
-
-    return result;
-}
-
 app.post('/api/books/:id/cover', upload.single('cover'), (req, res) => {
     const id = decodeURIComponent(req.params.id); // это fullPath
     const items = readLibrary();
@@ -274,26 +196,6 @@ app.get('/api/covers/:file', (req, res) => {
     res.setHeader('Content-Type', 'image/jpeg');
     fs.createReadStream(full).pipe(res);
 });
-
-// app.patch('/api/books/:id/meta', (req, res) => {
-//     const id = decodeURIComponent(req.params.id);
-//     const { totalPages } = req.body || {};
-//
-//     const t = Number(totalPages);
-//     if (!Number.isFinite(t) || t < 1) {
-//         return res.status(400).json({ error: 'totalPages must be a positive number' });
-//     }
-//
-//     const items = readLibrary();
-//     const book = items.find(b => (b.id || b.fullPath) === id);
-//
-//     if (!book) return res.status(404).json({ error: 'Book not found' });
-//
-//     book.totalPages = Math.floor(t);
-//
-//     writeLibrary(items);
-//     res.json({ ok: true, id, totalPages: book.totalPages });
-// });
 
 app.patch('/api/books/:id/meta', (req, res) => {
     const id = decodeURIComponent(req.params.id);

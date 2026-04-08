@@ -132,10 +132,16 @@
         .progressPercent {
           font-size: 12px;
           color: #666;
+          font-weight: bold;
         }
         .lastOpenedAt {
           font-size: 12px;
           color: #666;
+          text-align: left;
+          margin-bottom: 3px;
+        }
+        .lastOpenedAtSpan {
+          display: block;
         }
       }
 

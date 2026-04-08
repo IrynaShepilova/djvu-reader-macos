@@ -110,7 +110,11 @@
           <div class="extras">
             <div class="readProgress">
               @if (b.lastOpenedAt) {
-              <span class="lastOpenedAt">Last opened at: {{ b.lastOpenedAt | date: 'd MMM y, HH:mm'  }}</span>
+                <div class="lastOpenedAt">
+                  <span class="lastOpenedAtSpan">Last opened at: </span>
+                  <span class="lastOpenedAtSpan">{{ b.lastOpenedAt | date: 'd MMM y, HH:mm'  }}</span>
+                </div>
+
               }
               @if (b.progressPercent) {
                 <span class="progressPercent">{{ b.progressPercent }}%</span>
