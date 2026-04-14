@@ -19,8 +19,8 @@ const {
 } = require('./config/paths');
 const { readLibrary, writeLibrary } = require('./services/library-store');
 const { getScanState, setScanState } = require('./services/scan-state');
-const { scanAll } = require('./services/scanner');
-const { ensureSettingsFile, getScanFolders, updateScanFolder } = require('./services/settings-store');
+const { scanAll, checkFolderAvailability } = require('./services/scanner');
+const { ensureSettingsFile, addScanFolder, getScanFolders, removeScanFolder, updateScanFolder, updateScanFolderStatus } = require('./services/settings-store');
 
 const app = express();
 const PORT = 3000;
@@ -64,6 +64,49 @@ app.get('/api/scan-folders', (req, res) => {
     res.json(getScanFolders());
 });
 
+app.post('/api/scan-folders', (req, res) => {
+    const { path } = req.body || {};
+
+    if (!path || typeof path !== 'string') {
+        return res.status(400).json({ error: 'path is required' });
+    }
+
+    const folder = addScanFolder(path);
+
+    if (!folder) {
+        return res.status(409).json({ error: 'Folder already exists' });
+    }
+
+    res.json({
+        ok: true,
+        folder,
+    });
+});
+
+app.post('/api/scan-folders/check/:id', (req, res) => {
+    const id = decodeURIComponent(req.params.id);
+
+    const folders = getScanFolders();
+    const folder = folders.find(f => f.id === id);
+
+    if (!folder) {
+        return res.status(404).json({ error: 'Scan folder not found' });
+    }
+
+    const result = checkFolderAvailability(folder.path);
+
+    const updated = updateScanFolderStatus(id, {
+        status: result.status,
+        errorMessage: result.errorMessage,
+        lastCheckedAt: new Date().toISOString(),
+    });
+
+    res.json({
+        ok: true,
+        folder: updated,
+    });
+});
+
 app.patch('/api/scan-folders/:id', (req, res) => {
     const id = decodeURIComponent(req.params.id);
     const { enabled } = req.body || {};
@@ -81,6 +124,25 @@ app.patch('/api/scan-folders/:id', (req, res) => {
     res.json({
         ok: true,
         folder: updated,
+    });
+});
+
+app.delete('/api/scan-folders/:id', (req, res) => {
+    const id = decodeURIComponent(req.params.id);
+
+    const removed = removeScanFolder(id);
+
+    if (removed === null) {
+        return res.status(404).json({ error: 'Scan folder not found' });
+    }
+
+    if (removed === false) {
+        return res.status(400).json({ error: 'Default folders cannot be removed' });
+    }
+
+    res.json({
+        ok: true,
+        folder: removed,
     });
 });
 

@@ -109,12 +109,80 @@ function updateScanFolder(id, patch) {
     return next;
 }
 
+function addScanFolder(folderPath) {
+    const settings = readSettings();
+    const folders = settings.scanFolders || [];
+
+    const exists = folders.some(f => f.path === folderPath);
+    if (exists) {
+        return null;
+    }
+
+    const newFolder = {
+        id: `custom-${Date.now()}`,
+        path: folderPath,
+        enabled: true,
+        type: 'custom',
+        status: 'unknown',
+    };
+
+    folders.push(newFolder);
+    settings.scanFolders = folders;
+    writeSettings(settings);
+
+    return newFolder;
+}
+
+function removeScanFolder(id) {
+    const settings = readSettings();
+    const folders = settings.scanFolders || [];
+
+    const index = folders.findIndex(folder => folder.id === id);
+    if (index === -1) return null;
+
+    const folder = folders[index];
+
+    if (folder.type !== 'custom') {
+        return false;
+    }
+
+    folders.splice(index, 1);
+    settings.scanFolders = folders;
+    writeSettings(settings);
+
+    return folder;
+}
+
+function updateScanFolderStatus(id, statusPatch) {
+    const settings = readSettings();
+    const folders = settings.scanFolders || [];
+
+    const index = folders.findIndex(folder => folder.id === id);
+    if (index === -1) return null;
+
+    const current = folders[index];
+
+    const next = {
+        ...current,
+        ...statusPatch,
+    };
+
+    folders[index] = next;
+    settings.scanFolders = folders;
+    writeSettings(settings);
+
+    return next;
+}
+
 module.exports = {
     readSettings,
     writeSettings,
+    addScanFolder,
     getScanFolders,
+    removeScanFolder,
     saveScanFolders,
     ensureSettingsFile,
     createDefaultScanFolders,
     updateScanFolder,
+    updateScanFolderStatus,
 };

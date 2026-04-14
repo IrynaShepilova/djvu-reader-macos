@@ -43,7 +43,55 @@ function scanAll(scanDirs) {
     return scanDirs.flatMap(dir => scanFolderRecursive(dir, 0));
 }
 
+function checkFolderAvailability(folderPath) {
+    try {
+        if (!fs.existsSync(folderPath)) {
+            return {
+                status: 'missing',
+                errorMessage: 'Folder does not exist',
+            };
+        }
+
+        const stat = fs.statSync(folderPath);
+
+        if (!stat.isDirectory()) {
+            return {
+                status: 'error',
+                errorMessage: 'Not a directory',
+            };
+        }
+
+        try {
+            fs.readdirSync(folderPath);
+        } catch (err) {
+            if (err.code === 'EACCES' || err.code === 'EPERM') {
+                return {
+                    status: 'denied',
+                    errorMessage: 'Permission denied',
+                };
+            }
+
+            return {
+                status: 'error',
+                errorMessage: err.message,
+            };
+        }
+
+        return {
+            status: 'available',
+            errorMessage: null,
+        };
+
+    } catch (err) {
+        return {
+            status: 'error',
+            errorMessage: err.message,
+        };
+    }
+}
+
 module.exports = {
     scanAll,
     scanFolderRecursive,
+    checkFolderAvailability,
 };
