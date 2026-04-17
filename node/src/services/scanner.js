@@ -1,7 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const {getScanFolders} = require("./settings-store");
 
 const MAX_SCAN_DEPTH = 3;
+
+
+function hashPath(fullPath) {
+    return crypto.createHash('sha1').update(fullPath).digest('hex');
+}
 
 function scanFolderRecursive(dir, depth = 0) {
     if (depth > MAX_SCAN_DEPTH) return [];
@@ -24,7 +31,7 @@ function scanFolderRecursive(dir, depth = 0) {
 
         if (entry.isFile() && /\.(djvu|djv)$/i.test(entry.name)) {
             result.push({
-                id: fullPath,
+                id: hashPath(fullPath),
                 fullPath,
                 title: path.parse(entry.name).name,
                 filename: entry.name,

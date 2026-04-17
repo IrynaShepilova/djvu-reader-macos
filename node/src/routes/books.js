@@ -23,8 +23,24 @@ function getEnabledScanPaths() {
         .map(f => f.path);
 }
 
+function isBookInEnabledFolder(book, enabledPaths) {
+    if (!book?.fullPath) return false;
+
+    return enabledPaths.some(folderPath => {
+        const normalizedFolder = path.resolve(folderPath);
+        const normalizedBook = path.resolve(book.fullPath);
+
+        return normalizedBook === normalizedFolder
+            || normalizedBook.startsWith(normalizedFolder + path.sep);
+    });
+}
+
 router.get('/api/books', (req, res) => {
-    const items = readLibrary();
+    const enabledPaths = getEnabledScanPaths();
+
+    const items = readLibrary()
+        .filter(book => !book.invalid)
+        .filter(book => isBookInEnabledFolder(book, enabledPaths));
 
     const result = items.map((b) => ({
         ...b,
@@ -35,10 +51,10 @@ router.get('/api/books', (req, res) => {
 });
 
 router.get('/api/books/file/:id', (req, res) => {
-    const id = decodeURIComponent(req.params.id);
+    const id = req.params.id;
 
     const items = readLibrary();
-    const book = items.find(b => (b.id || b.fullPath) === id);
+    const book = items.find(b => b.id === id);
 
     if (!book || !book.fullPath) {
         return res.status(404).send('Book not found');
@@ -93,6 +109,26 @@ router.post('/api/books/scan/start', async (req, res) => {
     res.json({ ok: true });
 });
 
+router.post('/api/books/:id/invalid', (req, res) => {
+    const id = req.params.id;
+
+    const items = readLibrary();
+    const book = items.find(b => (b.id || b.fullPath) === id);
+
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
+    }
+
+    book.invalid = true;
+    writeLibrary(items);
+
+    res.json({
+        ok: true,
+        id,
+        invalid: true,
+    });
+});
+
 async function runScan() {
     let scanState = getScanState();
 
@@ -141,7 +177,7 @@ async function runScan() {
 }
 
 router.post('/api/books/:id/cover', upload.single('cover'), (req, res) => {
-    const id = decodeURIComponent(req.params.id);
+    const id = req.params.id;
     const items = readLibrary();
     const book = items.find(b => (b.id || b.fullPath) === id);
 
@@ -171,7 +207,7 @@ router.get('/api/covers/:file', (req, res) => {
 });
 
 router.patch('/api/books/:id/meta', (req, res) => {
-    const id = decodeURIComponent(req.params.id);
+    const id = req.params.id;
     const { totalPages, lastOpenedAt } = req.body || {};
 
     const hasTotalPages = totalPages !== undefined && totalPages !== null;
@@ -220,5 +256,13 @@ router.patch('/api/books/:id/meta', (req, res) => {
         lastOpenedAt: book.lastOpenedAt ?? null,
     });
 });
+
+function markBookInvalid(id) {
+    const items = readLibrary();
+    const next = items.map(b =>
+        b.id === id ? { ...b, invalid: true } : b
+    );
+    writeLibrary(next);
+}
 
 module.exports = router;

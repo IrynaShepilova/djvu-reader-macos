@@ -14,4 +14,12 @@ export class BookService {
   getBooks(): Observable<Book[]> {
     return this.http.get<Book[]>(this.apiUrl);
   }
+
+  markInvalid(id: string) {
+    return this.http.post(
+      `${this.apiUrl}/${encodeURIComponent(id)}/invalid`,
+      {}
+    );
+  }
+
 }

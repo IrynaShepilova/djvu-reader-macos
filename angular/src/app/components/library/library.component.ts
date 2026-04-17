@@ -10,6 +10,10 @@ import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 import { DatePipe } from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {timestamp} from 'rxjs';
+import { ScanFolder } from '../../interfaces/scan-folder';
+import { ScanFoldersService } from '../../services/scan-folders.service';
+import { ScanFoldersDialogComponent } from '../scan-folders-dialog/scan-folders-dialog.component';
+import { BookService } from '../../services/book.service';
 
 declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
@@ -33,6 +37,8 @@ export class LibraryComponent implements OnInit {
     private router: Router,
     private tabsService: TabsService,
     private dialog: MatDialog,
+    private scanFoldersService: ScanFoldersService,
+    private bookService: BookService,
   ) {}
 
 
@@ -133,7 +139,7 @@ export class LibraryComponent implements OnInit {
 
     const worker = async () => {
       while (idx < queue.length) {
-        if (runId !== this.previewsRunId) return; // отмена старого запуска
+        if (runId !== this.previewsRunId) return;
 
         const b = queue[idx++];
         this.previewInFlight.add(b.id);
@@ -146,6 +152,7 @@ export class LibraryComponent implements OnInit {
           this.previewMap.update(m => ({ ...m, [b.id]: url }));
         } catch (e) {
           console.warn('Preview failed', b, e);
+          this.bookService.markInvalid(b.id).subscribe();
         } finally {
           this.previewInFlight.delete(b.id);
         }
@@ -157,8 +164,7 @@ export class LibraryComponent implements OnInit {
 
   private async buildPreview(b: Book): Promise<string> {
     const fileUrl = `${this.apiBase}${b.url}`;
-    const buf = await fetch(decodeURI(fileUrl)).then(r => r.arrayBuffer());
-    const doc = new (DjVu as any).Document(buf);
+    const buf = await fetch(fileUrl).then(r => r.arrayBuffer());    const doc = new (DjVu as any).Document(buf);
     const page1 = await doc.getPage(1);
     const img = await page1.getImageData();
 
@@ -249,7 +255,7 @@ export class LibraryComponent implements OnInit {
 
           this.isScanning.set(false);
 
-          this.dialog.open(DialogComponent, {
+          const ref = this.dialog.open(DialogComponent, {
             width: '420px',
             data: {
               title: 'Scan complete',
@@ -257,7 +263,10 @@ export class LibraryComponent implements OnInit {
               // items: (st.newBooks ?? []).map((b: any) => b.title)
             }
           });
-          await this.refreshLibrary();
+
+          ref.afterClosed().subscribe(() => {
+            void this.refreshLibrary();
+          });
         }
       }, 300);
 
@@ -377,6 +386,19 @@ export class LibraryComponent implements OnInit {
       ?? 'Default'
     );
   });
+
+  openScanFoldersDialog() {
+    const ref = this.dialog.open(ScanFoldersDialogComponent, {
+      width: '800px',
+      maxWidth: '95vw',
+    });
+
+    ref.afterClosed().subscribe(result => {
+      if (result?.refreshLibrary) {
+        void this.refreshLibrary();
+      }
+    });
+  }
 
   protected readonly timestamp = timestamp;
 }

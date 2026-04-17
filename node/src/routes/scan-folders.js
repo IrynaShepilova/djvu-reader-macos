@@ -36,7 +36,7 @@ router.post('/api/scan-folders', (req, res) => {
 });
 
 router.post('/api/scan-folders/check/:id', (req, res) => {
-    const id = decodeURIComponent(req.params.id);
+    const id = req.params.id;
 
     const folders = getScanFolders();
     const folder = folders.find(f => f.id === id);
@@ -60,7 +60,7 @@ router.post('/api/scan-folders/check/:id', (req, res) => {
 });
 
 router.patch('/api/scan-folders/:id', (req, res) => {
-    const id = decodeURIComponent(req.params.id);
+    const id = req.params.id;
     const { enabled } = req.body || {};
 
     if (typeof enabled !== 'boolean') {
@@ -80,7 +80,7 @@ router.patch('/api/scan-folders/:id', (req, res) => {
 });
 
 router.delete('/api/scan-folders/:id', (req, res) => {
-    const id = decodeURIComponent(req.params.id);
+    const id = req.params.id;
 
     const removed = removeScanFolder(id);
 

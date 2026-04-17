@@ -1,0 +1,154 @@
+.scan-folders-dialog {
+  min-width: 720px;
+}
+
+.add-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  input {
+    flex: 1 1 auto;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    font: inherit;
+  }
+}
+
+.folders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.folder-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.folder-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.folder-path {
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.folder-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #666;
+}
+
+.folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.state {
+  color: #666;
+  padding: 8px 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ececec;
+  font-size: 12px;
+  color: #444;
+}
+
+.badge--ok {
+  background: #e7f6ea;
+  color: #256c2f;
+}
+
+.badge--error {
+  background: #fbe9e9;
+  color: #a33;
+}
+
+.badge--disabled {
+  background: #f1f1f1;
+  color: #777;
+}
+
+.selected-path {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #fff;
+  color: #444;
+  word-break: break-word;
+}
+
+.folder-select {
+  flex: 1 1 auto;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+}
+
+.folder-info--disabled .folder-path {
+  color: #9a9a9a;
+}
+
+.folder-path-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #bdbdbd;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.status-dot--ok {
+  background: #2e9f42;
+  border-color: #2e9f42;
+}
+
+.status-dot--missing {
+  background: #b8b8b8;
+  border-color: #b8b8b8;
+}
+
+.status-dot--error {
+  background: #c93b3b;
+  border-color: #c93b3b;
+}
+
+.folder-checkbox {
+  display: inline-flex;
+  align-items: center;
+}
+
+.folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

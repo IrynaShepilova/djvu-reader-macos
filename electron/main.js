@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 app.setName('Djvu Reader');
 
 const path = require('path');
@@ -116,8 +116,14 @@ function waitForServer(url, timeoutMs = 15000) {
 }
 
 async function createWindow() {
-    mainWindow = new BrowserWindow({ show: false });
-
+    mainWindow = new BrowserWindow({
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+        },
+    });
     await mainWindow.loadURL(
         'data:text/html,' +
         encodeURIComponent('<h3 style="font-family:sans-serif">Starting...</h3>')
@@ -188,4 +194,16 @@ app.on('before-quit', async (e) => {
 
     await stopBackend({ forceAfterMs: 2000 });
     app.exit(0);
+});
+
+ipcMain.handle('dialog:select-folder', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+    });
+
+    if (result.canceled || !result.filePaths.length) {
+        return null;
+    }
+
+    return result.filePaths[0];
 });

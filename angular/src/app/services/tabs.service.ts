@@ -132,7 +132,7 @@ export class TabsService {
 
     try {
       const fileUrl = `${environment.apiBase}${tab.book.url}`;
-      const buf = await fetch(decodeURI(fileUrl)).then(r => r.arrayBuffer());
+      const buf = await fetch(fileUrl).then(r => r.arrayBuffer());
 
       const doc = new DjVu.Document(buf);
       state.document = doc;

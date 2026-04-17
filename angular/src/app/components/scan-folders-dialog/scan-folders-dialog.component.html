@@ -1,0 +1,91 @@
+<h2 mat-dialog-title>Scan folders</h2>
+
+<div mat-dialog-content class="scan-folders-dialog">
+  <div class="add-row">
+    @if (isElectron) {
+      <div class="selected-path">
+        {{ selectedFolderPath || 'No folder selected' }}
+      </div>
+
+      <button mat-button type="button" (click)="browseFolder()">
+        Browse
+      </button>
+    } @else {
+      <select [(ngModel)]="selectedFolderPath" class="folder-select">
+        <option value="">Select test folder</option>
+        @for (path of devFolderPresets; track path) {
+          <option [value]="path">{{ path }}</option>
+        }
+      </select>
+    }
+
+    <button
+      mat-button
+      type="button"
+      (click)="addFolder()"
+      [disabled]="!selectedFolderPath.trim()"
+    >
+      Add
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="state">Loading...</div>
+  } @else {
+    <div class="folders-list">
+      @for (folder of scanFolders(); track folder.id) {
+        <div class="folder-row">
+          <div class="folder-info" [class.folder-info--disabled]="!folder.enabled">
+            <div class="folder-path-row">
+    <span
+      class="status-dot"
+      [class.status-dot--ok]="folder.status === 'available'"
+      [class.status-dot--missing]="folder.status === 'missing'"
+      [class.status-dot--error]="folder.status === 'error'"
+    ></span>
+
+              <div class="folder-path">{{ folder.path }}</div>
+            </div>
+
+            <div class="folder-meta">
+              <span class="badge">{{ folder.type }}</span>
+
+              @if (folder.errorMessage) {
+                <span class="folder-error">{{ folder.errorMessage }}</span>
+              }
+            </div>
+          </div>
+
+          <div class="folder-actions">
+            <label class="folder-checkbox" alt="Enable folder">
+              <mat-checkbox
+                [checked]="folder.enabled"
+                (change)="toggleFolder(folder, $event.checked)"
+                aria-label="Enable folder"
+              ></mat-checkbox>
+            </label>
+
+            <button mat-icon-button type="button" (click)="checkFolder(folder)" title="Check folder" alt="Check folder">
+              <mat-icon>refresh</mat-icon>
+            </button>
+
+            @if (folder.type === 'custom') {
+              <button mat-icon-button type="button" (click)="removeFolder(folder)" title="Remove folder" alt="Remove folder">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<div mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Close</button>
+</div>
+<!--<div mat-dialog-actions align="end">-->
+<!--  <button mat-button mat-dialog-close>-->
+<!--    {{ 'OK' }}-->
+<!--  </button>-->
+<!--</div>-->
