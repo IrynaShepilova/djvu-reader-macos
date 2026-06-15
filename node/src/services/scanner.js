@@ -55,7 +55,7 @@ function checkFolderAvailability(folderPath) {
         if (!fs.existsSync(folderPath)) {
             return {
                 status: 'missing',
-                errorMessage: 'Folder does not exist',
+                errorMessage: 'Folder is not available',
             };
         }
 

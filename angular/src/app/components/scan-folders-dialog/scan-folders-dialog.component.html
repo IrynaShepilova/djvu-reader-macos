@@ -66,12 +66,12 @@
             </label>
 
             <button mat-icon-button type="button" (click)="checkFolder(folder)" title="Check folder" alt="Check folder">
-              <mat-icon>refresh</mat-icon>
+              <mat-icon  class="material-symbols-outlined">refresh</mat-icon>
             </button>
 
             @if (folder.type === 'custom') {
               <button mat-icon-button type="button" (click)="removeFolder(folder)" title="Remove folder" alt="Remove folder">
-                <mat-icon>delete</mat-icon>
+                <mat-icon class="material-symbols-outlined">delete</mat-icon>
               </button>
             }
           </div>
@@ -84,8 +84,3 @@
 <div mat-dialog-actions align="end">
   <button mat-button type="button" (click)="close()">Close</button>
 </div>
-<!--<div mat-dialog-actions align="end">-->
-<!--  <button mat-button mat-dialog-close>-->
-<!--    {{ 'OK' }}-->
-<!--  </button>-->
-<!--</div>-->

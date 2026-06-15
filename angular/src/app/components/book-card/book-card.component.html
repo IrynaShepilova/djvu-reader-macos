@@ -1,0 +1,34 @@
+<div class="file-card" (click)="open.emit(book)">
+  <div class="preview-container">
+    <img
+      class="preview"
+      [src]="previewUrl"
+      loading="lazy"
+      alt="preview"
+    />
+  </div>
+
+  <div class="info">
+    <div class="title">{{ book.title || book.url }}</div>
+    <div class="extras">
+      <div class="readProgress">
+        @if (book.lastOpenedAt) {
+          <div class="lastOpenedAt">
+            <span class="lastOpenedAtSpan">Last opened at: </span>
+            <span class="lastOpenedAtSpan">{{ book.lastOpenedAt | date: 'd MMM y, HH:mm'  }}</span>
+          </div>
+
+        }
+        @if (book.progressPercent) {
+          <span class="progressPercent">{{ book.progressPercent }}%</span>
+        } @else if (book.lastOpenedAt) {
+          <span class="progressPercent">0%</span>
+
+        }
+        @else {
+          <span class="new">New</span>
+        }
+      </div>
+    </div>
+  </div>
+</div>

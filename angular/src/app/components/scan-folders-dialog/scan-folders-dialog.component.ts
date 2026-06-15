@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {Component, OnInit, Signal, signal} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -8,6 +8,7 @@ import { ScanFoldersService } from '../../services/scan-folders.service';
 import { firstValueFrom } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { ScanFoldersFacade } from '../../services/scan-folders-facade';
 
 @Component({
   selector: 'app-scan-folders-dialog',
@@ -17,27 +18,21 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
   styleUrl: './scan-folders-dialog.component.scss',
 })
 export class ScanFoldersDialogComponent implements OnInit {
-  scanFolders = signal<ScanFolder[]>([]);
-  loading = signal(false);
+  scanFolders!: Signal<ScanFolder[]>;
+  loading!: Signal<boolean>;
   private refreshLibraryOnClose = false;
 
   constructor(
     private scanFoldersService: ScanFoldersService,
+    private scanFoldersFacade: ScanFoldersFacade,
     private dialogRef: MatDialogRef<ScanFoldersDialogComponent>,
-  ) {}
-
-  ngOnInit(): void {
-    void this.loadFolders();
+  ) {
+     this.scanFolders = this.scanFoldersFacade.scanFolders;
+     this.loading = this.scanFoldersFacade.loading;
   }
 
-  async loadFolders() {
-    this.loading.set(true);
-    try {
-      const folders = await this.scanFoldersService.getScanFolders().toPromise();
-      this.scanFolders.set(folders ?? []);
-    } finally {
-      this.loading.set(false);
-    }
+  ngOnInit(): void {
+    void this.scanFoldersFacade.loadFolders();
   }
 
   selectedFolderPath = '';
@@ -67,36 +62,19 @@ export class ScanFoldersDialogComponent implements OnInit {
     const path = this.selectedFolderPath.trim();
     if (!path) return;
 
-    const res = await firstValueFrom(this.scanFoldersService.addScanFolder(path));
-    this.scanFolders.update(folders => [...folders, res.folder]);
+    await this.scanFoldersFacade.addFolder(path);
     this.selectedFolderPath = '';
   }
 
   async toggleFolder(folder: ScanFolder, enabled?: boolean) {
     console.log('toggleFolder', );
-    const nextEnabled = enabled ?? !folder.enabled;
-
-    const res = await firstValueFrom(
-      this.scanFoldersService.updateScanFolderEnabled(folder.id, nextEnabled)
-    );
-
-    this.scanFolders.update(folders =>
-      folders.map(f => f.id === folder.id ? res.folder : f)
-    );
-
+    await this.scanFoldersFacade.toggleFolder(folder, enabled);
     this.refreshLibraryOnClose = true;
   }
 
   async checkFolder(folder: ScanFolder) {
     console.log('checkFolder', );
-    const res = await firstValueFrom(
-      this.scanFoldersService.checkScanFolder(folder.id)
-    );
-
-    this.scanFolders.update(folders =>
-      folders.map(f => f.id === folder.id ? res.folder : f)
-    );
-
+    await this.scanFoldersFacade.checkFolder(folder);
     this.refreshLibraryOnClose = true;
   }
 
@@ -107,12 +85,7 @@ export class ScanFoldersDialogComponent implements OnInit {
     const confirmed = window.confirm(`Remove folder?\n\n${folder.path}`);
     if (!confirmed) return;
 
-    await firstValueFrom(this.scanFoldersService.removeScanFolder(folder.id));
-
-    this.scanFolders.update(folders =>
-      folders.filter(f => f.id !== folder.id)
-    );
-
+    await this.scanFoldersFacade.removeFolder(folder);
     this.refreshLibraryOnClose = true;
   }
 

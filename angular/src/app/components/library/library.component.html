@@ -96,45 +96,59 @@
       </div>
     </div>
   }
+  @if (sortMode() === 'byDirectory') {
+    <div class="directories-content">
+      @for (group of directoryGroups(); track group.title) {
+        <section class="directory-group">
+          <h3 class="directory-title"
+              [class.directory-title--unavailable]="group.scanFolder.status !== 'ok'"
+              (click)="toggleGroup(group.title)">
+            <mat-icon class="material-symbols-outlined">
+              {{
+                isNetworkFolder(group.scanFolder)
+                  ? 'public'
+                  : isGroupCollapsed(group.title)
+                    ? 'folder'
+                    : 'folder_open'
+              }}
+            </mat-icon>
+            {{ group.title }} ({{ group.books.length }})
+            <mat-icon class="material-symbols-outlined">
+              {{ isGroupCollapsed(group.title) ? 'chevron_right' : 'expand_less' }}
+            </mat-icon>
 
+          </h3>
 
-  <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
-    @for (b of sortedBooks(); track b.url) {
-      <div class="file-card" (click)="openBook(b)">
-        <div class="preview-container">
-          <img
-            class="preview"
-            [src]="previewMap()[b.id]"
-            loading="lazy"
-            alt="preview"
-          />
-        </div>
+          <div
+            class="directory-group-content"
+            [class.directory-group-content--collapsed]="isGroupCollapsed(group.title)"
+          >
+            <div class="directory-group-content-inner">
 
-        <div class="info">
-          <div class="title">{{ b.title || b.url }}</div>
-          <div class="extras">
-            <div class="readProgress">
-              @if (b.lastOpenedAt) {
-                <div class="lastOpenedAt">
-                  <span class="lastOpenedAtSpan">Last opened at: </span>
-                  <span class="lastOpenedAtSpan">{{ b.lastOpenedAt | date: 'd MMM y, HH:mm'  }}</span>
-                </div>
-
-              }
-              @if (b.progressPercent) {
-                <span class="progressPercent">{{ b.progressPercent }}%</span>
-              } @else if (b.lastOpenedAt) {
-                <span class="progressPercent">0%</span>
-
-              }
-              @else {
-                <span class="new">New</span>
-              }
+              <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
+                @for (b of group.books; track b.url) {
+                  <app-book-card
+                    [book]="b"
+                    [previewUrl]="previewMap()[b.id]"
+                    (open)="openBook($event)"
+                  />
+                }
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    }
-  </div>
+        </section>
+      }
+    </div>
+  } @else {
+    <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
+      @for (b of sortedBooks(); track b.url) {
+        <app-book-card
+          [book]="b"
+          [previewUrl]="previewMap()[b.id]"
+          (open)="openBook($event)"
+        />
+      }
+    </div>
+  }
 
 </div>

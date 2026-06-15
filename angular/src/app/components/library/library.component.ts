@@ -1,4 +1,15 @@
-import {Component, computed, OnInit, signal, ViewChild, WritableSignal, ElementRef , HostListener, inject} from '@angular/core';
+import {
+  Component,
+  computed,
+  OnInit,
+  signal,
+  ViewChild,
+  WritableSignal,
+  ElementRef,
+  HostListener,
+  inject,
+  Signal
+} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
@@ -14,18 +25,28 @@ import { ScanFolder } from '../../interfaces/scan-folder';
 import { ScanFoldersService } from '../../services/scan-folders.service';
 import { ScanFoldersDialogComponent } from '../scan-folders-dialog/scan-folders-dialog.component';
 import { BookService } from '../../services/book.service';
+import { ScanFoldersFacade } from '../../services/scan-folders-facade';
+import { BookCardComponent } from '../book-card/book-card.component';
+import { MatIcon } from '@angular/material/icon';
 
 declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
-type SortMode = 'default' | 'lastOpened' | 'title' | 'category';
+type SortMode = 'default' | 'lastOpened' |'byDirectory' | 'title' | 'category';
+
+type DirectoryGroup = {
+  title: string;
+  scanFolder: ScanFolder;
+  books: Book[];
+};
 
 @Component({
   selector: 'app-library',
   standalone: true,
   imports: [
     TabsBarComponent,
-    DatePipe,
     FormsModule,
+    BookCardComponent,
+    MatIcon,
   ],
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
@@ -39,7 +60,10 @@ export class LibraryComponent implements OnInit {
     private dialog: MatDialog,
     private scanFoldersService: ScanFoldersService,
     private bookService: BookService,
-  ) {}
+    private scanFoldersFacade: ScanFoldersFacade,
+  ) {
+    this.scanFolders = this.scanFoldersFacade.scanFolders;
+  }
 
 
   private readonly apiBase = environment.apiBase;
@@ -67,12 +91,15 @@ export class LibraryComponent implements OnInit {
   sortOptions = [
     { value: 'default' as SortMode, label: 'Default' },
     { value: 'lastOpened' as SortMode, label: 'Last opened' },
+    { value: 'byDirectory' as SortMode, label: 'By directory' },
     { value: 'title' as SortMode, label: 'Title' },
     { value: 'category' as SortMode, label: 'Category' },
   ];
   sortMenuOpen = false;
 
   private readonly el = inject(ElementRef<HTMLElement>);
+  readonly scanFolders: Signal<ScanFolder[]>;
+  collapsedGroups = signal(new Set<string>());
 
   @ViewChild('sortDropdownRoot', { static: true })
   sortDropdownRoot!: ElementRef<HTMLElement>;
@@ -93,6 +120,8 @@ export class LibraryComponent implements OnInit {
   async ngOnInit() {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
+
+    void this.scanFoldersFacade.loadFolders();
 
     await this.generatePreviews(list);
     const saved = localStorage.getItem(this.LS_SORT);
@@ -329,6 +358,45 @@ export class LibraryComponent implements OnInit {
     this.sortBooks(this.books(), this.sortMode())
   );
 
+  readonly directoryGroups = computed<DirectoryGroup[]>(() => {
+    const books = this.books();
+    const folders = this.scanFolders();
+
+    const map = new Map<string, DirectoryGroup>();
+
+    for (const book of books) {
+      const scanFolder = this.findScanFolderForBook(book, folders);
+
+      if (!scanFolder) continue;
+
+      const title = this.getRelativeDirectoryTitle(book, scanFolder);
+      const key = `${scanFolder.id}::${title}`;
+
+      const existing = map.get(key);
+
+      if (existing) {
+        existing.books.push(book);
+      } else {
+        map.set(key, {
+          title,
+          scanFolder,
+          books: [book],
+        });
+      }
+    }
+
+    return [...map.values()].sort((a, b) => {
+      const aNetwork = this.isNetworkFolder(a.scanFolder);
+      const bNetwork = this.isNetworkFolder(b.scanFolder);
+
+      if (aNetwork !== bNetwork) {
+        return aNetwork ? 1 : -1;
+      }
+
+      return a.title.localeCompare(b.title);
+    });
+  });
+
   private sortBooks(books: Book[], mode: SortMode): Book[] {
     const list = [...books];
 
@@ -368,6 +436,56 @@ export class LibraryComponent implements OnInit {
     return a.title.localeCompare(b.title);
   };
 
+  private findScanFolderForBook(book: Book, folders: ScanFolder[]): ScanFolder | null {
+    const fullPath = book.fullPath;
+
+    if (!fullPath) return null;
+
+    return folders.find(folder =>
+      fullPath.startsWith(folder.path + '/')
+    ) ?? null;
+  }
+
+  private isDefaultBooksFolder(folder: ScanFolder): boolean {
+    return folder.id === 'default-books';
+  }
+
+  private isDefaultDownloadsFolder(folder: ScanFolder): boolean {
+    return folder.id === 'default-downloads';
+  }
+
+  private getRelativeDirectoryTitle(book: Book, folder: ScanFolder): string {
+    const fullPath = book.fullPath;
+    if (!fullPath) return 'Unknown';
+
+    const folderName = folder.path.split('/').filter(Boolean).pop() ?? folder.path;
+
+    if (this.isDefaultBooksFolder(folder)) {
+      return 'Books';
+    }
+
+    if (this.isDefaultDownloadsFolder(folder)) {
+      return 'Downloads';
+    }
+
+    const relativePath = fullPath.replace(folder.path + '/', '');
+    const parts = relativePath.split('/');
+
+    parts.pop(); // filename
+
+    if (this.isNetworkFolder(folder)) {
+      return parts.length
+        ? parts.slice(0, 2).join(' / ')
+        : folderName;
+    }
+
+    return folderName;
+  }
+
+  protected isNetworkFolder(folder: ScanFolder): boolean {
+    return folder.path.startsWith('/Volumes/');
+  }
+
   toggleSortMenu() {
     this.sortMenuOpen = !this.sortMenuOpen;
   }
@@ -398,6 +516,24 @@ export class LibraryComponent implements OnInit {
         void this.refreshLibrary();
       }
     });
+  }
+
+  toggleGroup(title: string) {
+    this.collapsedGroups.update(current => {
+      const next = new Set(current);
+
+      if (next.has(title)) {
+        next.delete(title);
+      } else {
+        next.add(title);
+      }
+
+      return next;
+    });
+  }
+
+  isGroupCollapsed(title: string): boolean {
+    return this.collapsedGroups().has(title);
   }
 
   protected readonly timestamp = timestamp;
