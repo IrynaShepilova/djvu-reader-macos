@@ -1,0 +1,117 @@
+<div class="library-toolbar">
+  <div class="left">
+    <h1 class="title">Library</h1>
+
+    @if (booksCount) {
+      <span class="meta">({{ booksCount }} books)</span>
+    }
+
+  </div>
+
+  <div class="right">
+
+    <div class="sortBy">
+        <span class="sortLabel">
+<!--          Sort by:--><mat-icon class="material-symbols-outlined">sort</mat-icon>
+        </span>
+      <div class="sort-dropdown" #sortDropdownRoot>
+        <button
+          type="button"
+          class="sort-trigger"
+          (click)="toggleSortMenu.emit()"
+        >
+          {{ sortLabel }}
+<!--          <mat-icon class="material-symbols-outlined">expand_more</mat-icon>-->
+        </button>
+
+        @if (sortMenuOpen) {
+          <div class="sort-menu" >
+            @for (option of sortOptions; track option.value) {
+              <button
+                type="button"
+                class="sort-option"
+                (click)="sortModeChange.emit(option.value)"
+              >
+                {{ option.label }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="view-toggle" role="group" aria-label="View mode">
+      @if (viewMode === 'tile') {
+        <button
+          class="btn icon"
+          [class.active]="viewMode === 'tile'"
+          (click)="toggleViewMode.emit()"
+          title="Tile view"
+          type="button"
+        >
+          <span class="material-symbols-outlined">view_module</span>
+        </button>
+      } @else {
+        <button
+          class="btn icon"
+          [class.active]="viewMode === 'list'"
+          (click)="toggleViewMode.emit()"
+          title="List view"
+          type="button"
+        >
+          <span class="material-symbols-outlined">
+view_list
+</span>
+        </button>
+      }
+    </div>
+
+    <button
+      class="btn icon"
+      type="button"
+      title="Search"
+      (click)="toggleSearch.emit()"
+    >
+      <mat-icon class="material-symbols-outlined">search</mat-icon>
+    </button>
+
+
+    <button class="btn"
+            (click)="refresh.emit()"
+            [disabled]="isScanning">
+      <mat-icon class="material-symbols-outlined">refresh</mat-icon> Refresh
+    </button>
+
+    <button class="btn primary" (click)="scan.emit()" [disabled]="isScanning">
+      <mat-icon class="material-symbols-outlined">find_replace</mat-icon>
+      Scan
+    </button>
+
+    <button class="btn" type="button" (click)="openFolders.emit()">
+      <mat-icon class="material-symbols-outlined">folder_check_2</mat-icon> Folders
+    </button>
+
+  </div>
+
+</div>
+@if (searchOpen) {
+  <div class="search-box">
+    <input
+      type="text"
+      [value]="searchQuery"
+      placeholder="Search books..."
+      (input)="searchQueryChange.emit($any($event.target).value)"
+    />
+
+    @if (searchQuery) {
+      <button
+        class="search-clear"
+        type="button"
+        title="Clear search"
+        (click)="clearSearch.emit()"
+      >
+        <mat-icon class="material-symbols-outlined">close</mat-icon>
+      </button>
+    }
+  </div>
+}

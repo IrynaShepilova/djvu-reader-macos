@@ -28,6 +28,7 @@ import { BookService } from '../../services/book.service';
 import { ScanFoldersFacade } from '../../services/scan-folders-facade';
 import { BookCardComponent } from '../book-card/book-card.component';
 import { MatIcon } from '@angular/material/icon';
+import {LibraryToolbarComponent} from '../library-toolbar/library-toolbar.component';
 
 declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
@@ -47,6 +48,7 @@ type DirectoryGroup = {
     FormsModule,
     BookCardComponent,
     MatIcon,
+    LibraryToolbarComponent,
   ],
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
@@ -100,6 +102,9 @@ export class LibraryComponent implements OnInit {
   private readonly el = inject(ElementRef<HTMLElement>);
   readonly scanFolders: Signal<ScanFolder[]>;
   collapsedGroups = signal(new Set<string>());
+
+  searchOpen = signal(false);
+  searchQuery = signal('');
 
   @ViewChild('sortDropdownRoot', { static: true })
   sortDropdownRoot!: ElementRef<HTMLElement>;
@@ -355,11 +360,11 @@ export class LibraryComponent implements OnInit {
   }
 
   readonly sortedBooks = computed(() =>
-    this.sortBooks(this.books(), this.sortMode())
+    this.sortBooks(this.filteredBooks(), this.sortMode())
   );
 
   readonly directoryGroups = computed<DirectoryGroup[]>(() => {
-    const books = this.books();
+    const books = this.filteredBooks();
     const folders = this.scanFolders();
 
     const map = new Map<string, DirectoryGroup>();
@@ -535,6 +540,36 @@ export class LibraryComponent implements OnInit {
   isGroupCollapsed(title: string): boolean {
     return this.collapsedGroups().has(title);
   }
+
+  toggleSearch() {
+    this.searchOpen.update(v => !v);
+  }
+
+  setSearchQuery(value: string) {
+    this.searchQuery.set(value);
+  }
+
+  clearSearch() {
+    this.searchQuery.set('');
+  }
+
+  readonly filteredBooks = computed(() => {
+    const query = this.searchQuery().trim().toLowerCase();
+
+    if (!query) return this.books();
+
+    return this.books().filter(book => {
+      const title = book.title?.toLowerCase() ?? '';
+      const filename = book.filename?.toLowerCase() ?? '';
+      const fullPath = book.fullPath?.toLowerCase() ?? '';
+
+      return (
+        title.includes(query) ||
+        filename.includes(query) ||
+        fullPath.includes(query)
+      );
+    });
+  });
 
   protected readonly timestamp = timestamp;
 }
