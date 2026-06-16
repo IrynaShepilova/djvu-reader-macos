@@ -22,4 +22,11 @@ export class BookService {
     );
   }
 
+  updateBookMeta(id: string, patch: Partial<Book>) {
+    return this.http.patch<{ ok: boolean; book: Book }>(
+      `${this.apiUrl}/${encodeURIComponent(id)}/meta`,
+      patch
+    );
+  }
+
 }

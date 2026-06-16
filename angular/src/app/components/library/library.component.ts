@@ -410,7 +410,14 @@ export class LibraryComponent implements OnInit {
       }
     }
 
-    return [...map.values()].sort((a, b) => {
+    const groups = [...map.values()];
+
+    for (const group of groups) {
+      group.books.sort(this.compareByTitle);
+      group.books.sort(this.compareFavoritesFirst);
+    }
+
+    return groups.sort((a, b) => {
       const aNetwork = this.isNetworkFolder(a.scanFolder);
       const bNetwork = this.isNetworkFolder(b.scanFolder);
 
@@ -427,18 +434,23 @@ export class LibraryComponent implements OnInit {
 
     switch (mode) {
       case 'lastOpened':
-        return list.sort(this.compareByLastOpened);
+        list.sort(this.compareByLastOpened);
+        break;
 
       case 'title':
-        return list.sort(this.compareByTitle);
+        list.sort(this.compareByTitle);
+        break;
 
       case 'category':
-        return list.sort(this.compareByCategory);
+        list.sort(this.compareByCategory);
+        break;
 
       case 'default':
       default:
-        return list;
+        break;
     }
+
+    return list.sort(this.compareFavoritesFirst);
   }
 
   private compareByLastOpened = (a: Book, b: Book): number => {
@@ -459,6 +471,10 @@ export class LibraryComponent implements OnInit {
     if (categoryCompare !== 0) return categoryCompare;
 
     return a.title.localeCompare(b.title);
+  };
+
+  private compareFavoritesFirst = (a: Book, b: Book): number => {
+    return Number(!!b.favorite) - Number(!!a.favorite);
   };
 
   private findScanFolderForBook(book: Book, folders: ScanFolder[]): ScanFolder | null {
@@ -621,5 +637,27 @@ export class LibraryComponent implements OnInit {
       top: 0,
       behavior: 'smooth',
     });
+  }
+
+  async toggleFavorite(book: Book) {
+    const nextFavorite = !book.favorite;
+
+    try {
+      const res = await this.bookService
+        .updateBookMeta(book.id, { favorite: nextFavorite })
+        .toPromise();
+
+      if (!res?.book) return;
+
+      this.books.update(books =>
+        books.map(b => b.id === book.id ? { ...b, favorite: res.book.favorite } : b)
+      );
+    } catch (e) {
+      console.error('Failed to update favorite', e);
+    }
+  }
+
+  openEditBookDialog(book: Book) {
+    console.log('edit book', book);
   }
 }

@@ -10,4 +10,5 @@ export interface Book {
   progressPercent?: number | null;
   lastOpenedAt?: string | null;
   category?: string | null;
+  favorite?: boolean;
 }

@@ -1,4 +1,9 @@
 <div class="file-card" (click)="open.emit(book)">
+  @if (book.favorite) {
+    <mat-icon class="favorite-badge material-symbols">
+      favorite
+    </mat-icon>
+  }
   <div class="preview-container">
     <img
       class="preview"
@@ -19,15 +24,48 @@
           </div>
 
         }
-        @if (book.progressPercent) {
-          <span class="progressPercent">{{ book.progressPercent }}%</span>
-        } @else if (book.lastOpenedAt) {
-          <span class="progressPercent">0%</span>
+        <div class="card-bottom-info">
+          @if (book.progressPercent) {
+            <span class="progressPercent">{{ book.progressPercent }}%</span>
+          } @else if (book.lastOpenedAt) {
+            <span class="progressPercent">0%</span>
 
-        }
-        @else {
-          <span class="new">New</span>
-        }
+          }
+          @else {
+            <span class="new">New</span>
+          }
+          <span class="card-menu-holder">
+            <button
+              class="card-menu-btn"
+              type="button"
+              (click)="$event.stopPropagation()"
+              [matMenuTriggerFor]="bookMenu"
+              [matMenuTriggerRestoreFocus]="false"
+            >
+              <mat-icon class="material-symbols-outlined">more_vert</mat-icon>
+            </button>
+
+            <mat-menu #bookMenu="matMenu"
+                      xPosition="after"
+                      yPosition="below"
+                      panelClass="book-card-menu">
+              <button mat-menu-item (click)="favoriteToggle.emit(book)">
+                <mat-icon
+                  [class.material-symbols]="book.favorite"
+                  [class.material-symbols-outlined]="!book.favorite"
+                >
+                favorite
+              </mat-icon>
+                <span>{{ book.favorite ? 'Remove from favorites' : 'Add to favorites' }}</span>
+              </button>
+
+              <button mat-menu-item (click)="edit.emit(book)">
+                <mat-icon class="material-symbols-outlined">edit</mat-icon>
+                <span>Edit book</span>
+              </button>
+            </mat-menu>
+          </span>
+        </div>
       </div>
     </div>
   </div>

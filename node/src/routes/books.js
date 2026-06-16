@@ -236,54 +236,68 @@ router.get('/api/covers/:file', (req, res) => {
 
 router.patch('/api/books/:id/meta', (req, res) => {
     const id = req.params.id;
-    const { totalPages, lastOpenedAt } = req.body || {};
 
-    const hasTotalPages = totalPages !== undefined && totalPages !== null;
-    const hasLastOpenedAt = lastOpenedAt !== undefined;
+    let patch;
 
-    if (!hasTotalPages && !hasLastOpenedAt) {
+    try {
+        patch = normalizeBookMetaPatch(req.body);
+    } catch (e) {
+        return res.status(400).json({ error: e.message });
+    }
+
+    if (!Object.keys(patch).length) {
         return res.status(400).json({ error: 'Nothing to update' });
     }
 
-    let normalizedTotalPages;
-    if (hasTotalPages) {
-        const t = Number(totalPages);
-        if (!Number.isFinite(t) || t < 1) {
-            return res.status(400).json({ error: 'totalPages must be a positive number' });
-        }
-        normalizedTotalPages = Math.floor(t);
-    }
-
-    if (
-        hasLastOpenedAt &&
-        lastOpenedAt !== null &&
-        (typeof lastOpenedAt !== 'string' || Number.isNaN(Date.parse(lastOpenedAt)))
-    ) {
-        return res.status(400).json({ error: 'lastOpenedAt must be a valid ISO date string or null' });
-    }
-
     const items = readLibrary();
-    const book = items.find(b => (b.id || b.fullPath) === id);
+    const book = items.find(b => b.id === id);
 
     if (!book) return res.status(404).json({ error: 'Book not found' });
 
-    if (hasTotalPages) {
-        book.totalPages = normalizedTotalPages;
-    }
-
-    if (hasLastOpenedAt) {
-        book.lastOpenedAt = lastOpenedAt;
-    }
+    Object.assign(book, patch);
 
     writeLibrary(items);
 
     res.json({
         ok: true,
-        id,
-        totalPages: book.totalPages ?? null,
-        lastOpenedAt: book.lastOpenedAt ?? null,
+        book,
     });
 });
+
+function normalizeBookMetaPatch(body = {}) {
+    const patch = {};
+
+    if (body.totalPages !== undefined && body.totalPages !== null) {
+        const totalPages = Number(body.totalPages);
+
+        if (!Number.isFinite(totalPages) || totalPages < 1) {
+            throw new Error('totalPages must be a positive number');
+        }
+
+        patch.totalPages = Math.floor(totalPages);
+    }
+
+    if (body.lastOpenedAt !== undefined) {
+        if (
+            body.lastOpenedAt !== null &&
+            (typeof body.lastOpenedAt !== 'string' || Number.isNaN(Date.parse(body.lastOpenedAt)))
+        ) {
+            throw new Error('lastOpenedAt must be a valid ISO date string or null');
+        }
+
+        patch.lastOpenedAt = body.lastOpenedAt;
+    }
+
+    if (body.favorite !== undefined) {
+        if (typeof body.favorite !== 'boolean') {
+            throw new Error('favorite must be a boolean');
+        }
+
+        patch.favorite = body.favorite;
+    }
+
+    return patch;
+}
 
 function markBookInvalid(id) {
     const items = readLibrary();

@@ -70,6 +70,8 @@
                     [previewUrl]="previewMap()[b.id]"
                     [attr.data-book-id]="b.id"
                     (open)="openBook($event)"
+                    (favoriteToggle)="toggleFavorite($event)"
+                    (edit)="openEditBookDialog($event)"
                   />
                 }
               </div>
@@ -86,6 +88,8 @@
           [previewUrl]="previewMap()[b.id]"
           [attr.data-book-id]="b.id"
           (open)="openBook($event)"
+          (favoriteToggle)="toggleFavorite($event)"
+          (edit)="openEditBookDialog($event)"
         />
       }
     </div>
