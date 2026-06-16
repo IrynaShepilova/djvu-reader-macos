@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import {Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild} from '@angular/core';
 import {MatIcon} from '@angular/material/icon';
 
 export type LibraryViewMode = 'tile' | 'list';
@@ -19,6 +19,22 @@ export type SortOption = {
   styleUrl: './library-toolbar.component.scss',
 })
 export class LibraryToolbarComponent {
+  @ViewChild('sortDropdownRoot', { static: true })
+  sortDropdownRoot!: ElementRef<HTMLElement>;
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (!this.sortMenuOpen) return;
+    const target = event.target as Node | null;
+    if (!target) return;
+
+    const clickedInside = this.sortDropdownRoot.nativeElement.contains(target);
+
+    if (!clickedInside) {
+      this.sortMenuOpen =false;
+    }
+  }
+
   @Input({ required: true }) booksCount = 0;
   @Input({ required: true }) isScanning = false;
   @Input({ required: true }) viewMode: LibraryViewMode = 'tile';

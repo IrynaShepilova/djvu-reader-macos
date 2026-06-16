@@ -68,6 +68,7 @@
                   <app-book-card
                     [book]="b"
                     [previewUrl]="previewMap()[b.id]"
+                    [attr.data-book-id]="b.id"
                     (open)="openBook($event)"
                   />
                 }
@@ -83,10 +84,21 @@
         <app-book-card
           [book]="b"
           [previewUrl]="previewMap()[b.id]"
+          [attr.data-book-id]="b.id"
           (open)="openBook($event)"
         />
       }
     </div>
   }
 
+  @if (showScrollTop()) {
+    <button
+      class="scroll-top-btn"
+      type="button"
+      title="Back to top"
+      (click)="scrollToTop()"
+    >
+      <mat-icon class="material-symbols-outlined">arrow_upward</mat-icon>
+    </button>
+  }
 </div>

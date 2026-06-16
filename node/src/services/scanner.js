@@ -97,8 +97,84 @@ function checkFolderAvailability(folderPath) {
     }
 }
 
+function yieldToEventLoop() {
+    return new Promise(resolve => setImmediate(resolve));
+}
+
+async function scanFolderRecursiveAsync(dir, options = {}, depth = 0) {
+    const {
+        onProgress,
+        stats = { scannedEntries: 0, foundBooks: 0 },
+    } = options;
+
+    if (depth > MAX_SCAN_DEPTH) return [];
+    if (!fs.existsSync(dir)) return [];
+
+    const result = [];
+    let entries;
+
+    try {
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+        return result;
+    }
+
+    for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue;
+
+        const fullPath = path.join(dir, entry.name);
+        stats.scannedEntries++;
+
+        if (entry.isFile() && /\.(djvu|djv)$/i.test(entry.name)) {
+            stats.foundBooks++;
+
+            result.push({
+                id: hashPath(fullPath),
+                fullPath,
+                title: path.parse(entry.name).name,
+                filename: entry.name,
+            });
+        }
+
+        if (entry.isDirectory()) {
+            result.push(
+                ...(await scanFolderRecursiveAsync(fullPath, options, depth + 1))
+            );
+        }
+
+        if (stats.scannedEntries % 50 === 0) {
+            onProgress?.({
+                ...stats,
+                currentPath: fullPath,
+            });
+
+            await yieldToEventLoop();
+        }
+    }
+
+    return result;
+}
+
+async function scanAllAsync(scanDirs, options = {}) {
+    const result = [];
+    const stats = { scannedEntries: 0, foundBooks: 0 };
+
+    for (const dir of scanDirs) {
+        result.push(
+            ...(await scanFolderRecursiveAsync(dir, { ...options, stats }, 0))
+        );
+    }
+
+    options.onProgress?.({
+        ...stats,
+        currentPath: '',
+    });
+
+    return result;
+}
+
 module.exports = {
     scanAll,
-    scanFolderRecursive,
     checkFolderAvailability,
+    scanAllAsync,
 };

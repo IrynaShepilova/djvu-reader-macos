@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 const { readLibrary, writeLibrary } = require('../services/library-store');
 const { getScanState, setScanState } = require('../services/scan-state');
-const { scanAll } = require('../services/scanner');
+const { scanAll, scanAllAsync } = require('../services/scanner');
 const { getScanFolders } = require('../services/settings-store');
 const { coversDir } = require('../config/paths');
 
@@ -133,7 +133,23 @@ async function runScan() {
     let scanState = getScanState();
 
     try {
-        const scanned = scanAll(getEnabledScanPaths());
+        const scanned = await scanAllAsync(getEnabledScanPaths(), {
+            onProgress: ({ scannedEntries, foundBooks, currentPath }) => {
+                const state = getScanState();
+
+                setScanState({
+                    ...state,
+                    processed: scannedEntries,
+                    total: 0,
+                    percent: 0,
+                    added: foundBooks,
+                    message: currentPath
+                        ? `Scanning… ${currentPath}`
+                        : `Scanning… found ${foundBooks} books`,
+                });
+            },
+        });
+
         const current = readLibrary();
 
         const key = (b) => (b.id || b.fullPath).toLowerCase();
@@ -165,14 +181,26 @@ async function runScan() {
         const merged = [...current, ...newBooks];
         writeLibrary(merged);
 
-        scanState.added = newBooks.length;
-        scanState.percent = 100;
-        scanState.message = `Done. Added ${newBooks.length}`;
+        const state = getScanState();
+
+        setScanState({
+            ...state,
+            added: newBooks.length,
+            percent: 100,
+            processed: scanned.length,
+            total: scanned.length,
+            message: `Done. Added ${newBooks.length}`,
+        });
     } catch (e) {
         scanState.message = `Error: ${e?.message || e}`;
     } finally {
-        scanState.running = false;
-        scanState.done = true;
+        const state = getScanState();
+
+        setScanState({
+            ...state,
+            running: false,
+            done: true,
+        });
     }
 }
 

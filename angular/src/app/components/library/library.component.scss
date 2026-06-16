@@ -56,10 +56,14 @@
 .directory-title {
   font-size: 18px;
   color: #333;
-  padding-bottom: 2px;
+  padding-bottom: 7px;
   border-bottom: 1px solid #eee;
   cursor: pointer;
   user-select: none;
+  position: sticky;
+  top: 60px;
+  z-index: 5;
+  background: #fafafa;
 
   mat-icon {
     position: relative;
@@ -84,5 +88,27 @@
 .directory-group-content-inner {
   min-height: 0;
   overflow: hidden;
+}
+
+.scroll-top-btn {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  height: 56px;
+  width: 56px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #d7d7d7;
+  border-radius: 50px;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.scroll-top-btn:hover {
+  background: #f3f3f3;
 }
 

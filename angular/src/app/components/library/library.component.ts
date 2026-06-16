@@ -18,7 +18,6 @@ import { TabsService } from '../../services/tabs.service';
 import { MatDialog } from '@angular/material/dialog';
 import { DialogComponent } from '../dialog/dialog.component';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
-import { DatePipe } from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {timestamp} from 'rxjs';
 import { ScanFolder } from '../../interfaces/scan-folder';
@@ -76,7 +75,7 @@ export class LibraryComponent implements OnInit {
   scanProgress = signal(0);
   scanProcessed = signal(0);
   scanTotal = signal(0);
-  private scanPollTimer: any = null;
+  private scanPollTimeout: ReturnType<typeof setTimeout> | null = null;
 
   booksCount = computed(() => this.books().length);
 
@@ -106,25 +105,22 @@ export class LibraryComponent implements OnInit {
   searchOpen = signal(false);
   searchQuery = signal('');
 
-  @ViewChild('sortDropdownRoot', { static: true })
-  sortDropdownRoot!: ElementRef<HTMLElement>;
+  showScrollTop = signal(false);
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent) {
-    if (!this.sortMenuOpen) return;
-    const target = event.target as Node | null;
-    if (!target) return;
 
-    const clickedInside = this.sortDropdownRoot.nativeElement.contains(target);
 
-    if (!clickedInside) {
-      this.sortMenuOpen =false;
-    }
+
+
+  @HostListener('window:scroll')
+  onWindowScroll() {
+    this.showScrollTop.set(window.scrollY > window.innerHeight);
   }
 
   async ngOnInit() {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
+
+    this.scrollToPreviousPosition();
 
     void this.scanFoldersFacade.loadFolders();
 
@@ -252,6 +248,8 @@ export class LibraryComponent implements OnInit {
   }
 
   openBook(book: Book) {
+    this.saveCurrentScrollPosition(book);
+
     const tabId = this.tabsService.openBook(book);
     this.router.navigate(['/reader', tabId]);
   }
@@ -268,11 +266,15 @@ export class LibraryComponent implements OnInit {
     this.scanProcessed.set(0);
     this.scanTotal.set(0);
 
-    try {
-      await this.http.post(`${this.apiBase}/api/books/scan/start`, {}).toPromise();
+    const stopPolling = () => {
+      if (this.scanPollTimeout) {
+        clearTimeout(this.scanPollTimeout);
+        this.scanPollTimeout = null;
+      }
+    };
 
-      // polling
-      this.scanPollTimer = setInterval(async () => {
+    const pollScanStatus = async () => {
+      try {
         const st = await this.http
           .get<any>(`${this.apiBase}/api/books/scan/status`)
           .toPromise();
@@ -284,9 +286,7 @@ export class LibraryComponent implements OnInit {
         this.scanTotal.set(st.total ?? 0);
 
         if (st.done && !st.running) {
-          clearInterval(this.scanPollTimer);
-          this.scanPollTimer = null;
-
+          stopPolling();
           this.isScanning.set(false);
 
           const ref = this.dialog.open(DialogComponent, {
@@ -294,23 +294,43 @@ export class LibraryComponent implements OnInit {
             data: {
               title: 'Scan complete',
               message: `Added: ${st.added ?? 0}. Total: ${st.total ?? this.books().length}`,
-              // items: (st.newBooks ?? []).map((b: any) => b.title)
             }
           });
 
           ref.afterClosed().subscribe(() => {
             void this.refreshLibrary();
           });
-        }
-      }, 300);
 
+          return;
+        }
+
+        this.scanPollTimeout = setTimeout(() => {
+          void pollScanStatus();
+        }, 500);
+
+      } catch (e) {
+        console.error(e);
+        stopPolling();
+        this.isScanning.set(false);
+
+        this.dialog.open(DialogComponent, {
+          width: '420px',
+          data: {
+            title: 'Scan failed',
+            message: `There was an error scanning the library.`,
+          }
+        });
+      }
+    };
+
+    try {
+      await this.http.post(`${this.apiBase}/api/books/scan/start`, {}).toPromise();
+      void pollScanStatus();
     } catch (e) {
       console.error(e);
+      stopPolling();
       this.isScanning.set(false);
-      if (this.scanPollTimer) {
-        clearInterval(this.scanPollTimer);
-        this.scanPollTimer = null;
-      }
+
       this.dialog.open(DialogComponent, {
         width: '420px',
         data: {
@@ -318,7 +338,6 @@ export class LibraryComponent implements OnInit {
           message: `There was an error scanning the library.`,
         }
       });
-
     }
   }
 
@@ -327,6 +346,7 @@ export class LibraryComponent implements OnInit {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
     await this.generatePreviews(list);
+    this.scrollToPreviousPosition();
   }
 
   setViewMode(mode: LibraryViewMode) {
@@ -571,5 +591,35 @@ export class LibraryComponent implements OnInit {
     });
   });
 
+  scrollToPreviousPosition(){
+    const id = sessionStorage.getItem('djvu.library.lastBookId');
+
+    setTimeout(() => {
+      const el = id
+        ? document.querySelector(`[data-book-id="${CSS.escape(id)}"]`)
+        : null;
+
+      if (el) {
+        el.scrollIntoView({ block: 'center' });
+        return;
+      }
+
+      const y = Number(sessionStorage.getItem('djvu.library.scrollY') || 0);
+      window.scrollTo({ top: y });
+    });
+  }
+
   protected readonly timestamp = timestamp;
+
+  saveCurrentScrollPosition(book: Book) {
+    sessionStorage.setItem('djvu.library.lastBookId', book.id);
+    sessionStorage.setItem('djvu.library.scrollY', String(window.scrollY));
+  }
+
+  scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  }
 }
