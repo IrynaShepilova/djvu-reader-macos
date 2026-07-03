@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 app.setName('Djvu Reader');
 
 const path = require('path');
@@ -16,6 +16,8 @@ const API_HEALTH_URL = cfg.backend.healthUrl;
 const PROD_START_URL = cfg.backend.startUrl;
 const START_BACKEND_IN_DEV = process.env.START_BACKEND_IN_DEV === '1';
 const OPEN_DEVTOOLS = DEV_URL || process.env.OPEN_DEVTOOLS === '1';
+
+let pendingOpenFile = null;
 
 // --- single instance ---
 const gotLock = app.requestSingleInstanceLock();
@@ -40,7 +42,9 @@ function getBackendEntry() {
 }
 
 function startBackend() {
-    if (backendProc || DEV_URL) return;
+    // if (backendProc || DEV_URL) return;
+    if (backendProc) return;
+    if (DEV_URL && !START_BACKEND_IN_DEV) return;
 
     const backendEntry = getBackendEntry();
     console.log('[backend] entry:', backendEntry);
@@ -141,6 +145,12 @@ async function createWindow() {
         }
 
         await mainWindow.loadURL(urlToLoad);
+        mainWindow.webContents.once('did-finish-load', () => {
+            if (pendingOpenFile) {
+                mainWindow.webContents.send('open-file', pendingOpenFile);
+                pendingOpenFile = null;
+            }
+        });
     } catch (e) {
         const msg = (e && e.stack) ? e.stack : String(e);
         console.error('[MAIN] startup failed:', msg);
@@ -165,11 +175,75 @@ async function createWindow() {
     });
 }
 
+function createAppMenu() {
+    const template = [
+        {
+            label: app.name,
+            submenu: [
+                { role: 'about' },
+                { type: 'separator' },
+                { role: 'hide' },
+                { role: 'hideOthers' },
+                { role: 'unhide' },
+                { type: 'separator' },
+                { role: 'quit' },
+            ]
+        },
+
+        {
+            label: 'File',
+            submenu: [
+                {
+                    label: 'Open File...',
+                    accelerator: 'CmdOrCtrl+O',
+                    click: async () => {
+                        if (!mainWindow) return;
+
+                        const result = await dialog.showOpenDialog(mainWindow, {
+                            properties: ['openFile'],
+                            filters: [
+                                {
+                                    name: 'DjVu files',
+                                    extensions: ['djvu', 'djv'],
+                                },
+                            ],
+                        });
+
+                        if (result.canceled || !result.filePaths.length) {
+                            return;
+                        }
+
+                        mainWindow.webContents.send(
+                            'open-file',
+                            result.filePaths[0],
+                        );
+                    },
+                },
+            ],
+        },
+
+        {
+            label: 'Window',
+            submenu: [
+                { role: 'minimize' },
+                { role: 'zoom' },
+                { type: 'separator' },
+                { role: 'togglefullscreen' },
+                { type: 'separator' },
+                { role: 'toggleDevTools' },
+            ]
+        },
+    ];
+
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 
 app.whenReady().then(async () => {
     if (!DEV_URL || START_BACKEND_IN_DEV) startBackend();
 
     await createWindow();
+    createAppMenu();
 
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -178,6 +252,17 @@ app.whenReady().then(async () => {
             mainWindow.focus();
         }
     });
+});
+
+app.on('open-file', (event, filePath) => {
+    event.preventDefault();
+
+    if (!mainWindow) {
+        pendingOpenFile = filePath;
+        return;
+    }
+
+    mainWindow.webContents.send('open-file', filePath);
 });
 
 app.on('window-all-closed', () => {
@@ -194,6 +279,13 @@ app.on('before-quit', async (e) => {
 
     await stopBackend({ forceAfterMs: 2000 });
     app.exit(0);
+});
+
+ipcMain.on('renderer-ready', () => {
+    if (!pendingOpenFile || !mainWindow) return;
+
+    mainWindow.webContents.send('open-file', pendingOpenFile);
+    pendingOpenFile = null;
 });
 
 ipcMain.handle('dialog:select-folder', async () => {

@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 const { readLibrary, writeLibrary } = require('../services/library-store');
 const { getScanState, setScanState } = require('../services/scan-state');
-const { scanAll, scanAllAsync } = require('../services/scanner');
+const { scanAll, scanAllAsync, createBookFromPath, isDjvuFile } = require('../services/scanner');
 const { getScanFolders } = require('../services/settings-store');
 const { coversDir } = require('../config/paths');
 
@@ -344,6 +344,50 @@ router.delete('/api/books/:id/cover', (req, res) => {
         cover: '',
     });
 });
+
+router.post('/api/books/add-by-path', (req, res) => {
+    const { path: filePath } = req.body || {};
+
+    if (!filePath) {
+        return res.status(400).json({
+            error: 'Path is required',
+        });
+    }
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+            error: 'File not found',
+        });
+    }
+
+    if (!isDjvuFile(filePath)) {
+        return res.status(400).json({
+            error: 'Not a DjVu file',
+        });
+    }
+
+    const books = readLibrary();
+
+    const existing = books.find(book => book.fullPath === filePath);
+
+    if (existing) {
+        return res.json(withBookUrl(existing))
+    }
+
+    const book = createBookFromPath(filePath);
+
+    books.push(withBookUrl(book))
+    writeLibrary(books);
+
+    res.json(book);
+});
+
+function withBookUrl(book) {
+    return {
+        ...book,
+        url: `/api/books/file/${encodeURIComponent(book.id)}`,
+    };
+}
 
 function markBookInvalid(id) {
     const items = readLibrary();

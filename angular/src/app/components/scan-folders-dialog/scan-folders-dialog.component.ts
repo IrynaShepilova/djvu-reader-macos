@@ -51,7 +51,7 @@ export class ScanFoldersDialogComponent implements OnInit {
   async browseFolder() {
     if (!window.electronAPI) return;
 
-    const path = await window.electronAPI.selectFolder();
+    const path = await window.electronAPI?.selectFolder?.();
     if (path) {
       this.selectedFolderPath = path;
     }

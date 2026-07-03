@@ -29,13 +29,8 @@ function scanFolderRecursive(dir, depth = 0) {
 
         const fullPath = path.join(dir, entry.name);
 
-        if (entry.isFile() && /\.(djvu|djv)$/i.test(entry.name)) {
-            result.push({
-                id: hashPath(fullPath),
-                fullPath,
-                title: path.parse(entry.name).name,
-                filename: entry.name,
-            });
+        if (entry.isFile() && isDjvuFile(entry.name)) {
+            result.push(createBookFromPath(fullPath));
         }
 
         if (entry.isDirectory()) {
@@ -125,15 +120,11 @@ async function scanFolderRecursiveAsync(dir, options = {}, depth = 0) {
         const fullPath = path.join(dir, entry.name);
         stats.scannedEntries++;
 
-        if (entry.isFile() && /\.(djvu|djv)$/i.test(entry.name)) {
+
+        if (entry.isFile() && isDjvuFile(entry.name)) {
             stats.foundBooks++;
 
-            result.push({
-                id: hashPath(fullPath),
-                fullPath,
-                title: path.parse(entry.name).name,
-                filename: entry.name,
-            });
+            result.push(createBookFromPath(fullPath));
         }
 
         if (entry.isDirectory()) {
@@ -173,8 +164,23 @@ async function scanAllAsync(scanDirs, options = {}) {
     return result;
 }
 
+function isDjvuFile(filePath) {
+    return /\.(djvu|djv)$/i.test(filePath);
+}
+
+function createBookFromPath(fullPath) {
+    return {
+        id: hashPath(fullPath),
+        fullPath,
+        title: path.parse(fullPath).name,
+        filename: path.basename(fullPath),
+    };
+}
+
 module.exports = {
     scanAll,
     checkFolderAvailability,
     scanAllAsync,
+    createBookFromPath,
+    isDjvuFile,
 };

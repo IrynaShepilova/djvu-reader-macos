@@ -34,6 +34,15 @@
       ],
       "icon": "resources/icon.icns"
     },
+    "fileAssociations": [
+      {
+        "ext": ["djvu", "djv"],
+        "name": "DjVu Document",
+        "description": "DjVu document",
+        "role": "Viewer",
+        "icon": "resources/icon.icns"
+      }
+    ],
     "asar": true,
     "extraResources": [
       { "from": "build_resources/node/src", "to": "node/src" },

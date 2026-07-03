@@ -2,6 +2,7 @@ import {
   Component,
   computed,
   OnInit,
+  OnDestroy,
   signal,
   ElementRef,
   HostListener,
@@ -26,6 +27,7 @@ import { BookCardComponent } from '../book-card/book-card.component';
 import { MatIcon } from '@angular/material/icon';
 import {LibraryToolbarComponent} from '../library-toolbar/library-toolbar.component';
 import { EditBookDialogComponent } from '../edit-book-dialog/edit-book-dialog.component';
+import {firstValueFrom} from 'rxjs';
 
 type LibraryViewMode = 'tile' | 'list';
 type SortMode = 'default' | 'lastOpened' |'byDirectory' | 'title' | 'category';
@@ -49,7 +51,7 @@ type DirectoryGroup = {
   templateUrl: './library.component.html',
   styleUrl: './library.component.scss'
 })
-export class LibraryComponent implements OnInit {
+export class LibraryComponent implements OnInit, OnDestroy {
 
   constructor(
     private http: HttpClient,
@@ -105,6 +107,7 @@ export class LibraryComponent implements OnInit {
 
   showScrollTop = signal(false);
 
+  private removeOpenFileListener?: () => void;
 
   @HostListener('window:scroll')
   onWindowScroll() {
@@ -112,6 +115,13 @@ export class LibraryComponent implements OnInit {
   }
 
   async ngOnInit() {
+
+    this.removeOpenFileListener = window.electronAPI?.onOpenFile?.((filePath) => {
+      void this.openBookFromFilePath(filePath);
+    });
+
+    window.electronAPI?.rendererReady?.();
+
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
 
@@ -724,6 +734,25 @@ export class LibraryComponent implements OnInit {
     } catch (e) {
       console.error('Failed to remove cover', e);
     }
+  }
+
+  async openBookFromFilePath(filePath: string) {
+    let book = this.books().find(b => b.fullPath === filePath);
+
+    if (!book) {
+      book = await firstValueFrom(
+        this.bookService.addBookByPath(filePath)
+      );
+      console.log('response', book);
+
+      await this.refreshLibrary();
+    }
+
+    this.openBook(book);
+  }
+
+  ngOnDestroy() {
+    // this.removeOpenFileListener?.();
   }
 
 }

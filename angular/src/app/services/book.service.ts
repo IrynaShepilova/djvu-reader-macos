@@ -112,4 +112,10 @@ export class BookService {
     return URL.createObjectURL(blob);
   }
 
+  addBookByPath(filePath: string): Observable<Book> {
+    return this.http.post<Book>(
+      `${this.apiUrl}/add-by-path`,
+      { path: filePath },
+    );
+  }
 }
