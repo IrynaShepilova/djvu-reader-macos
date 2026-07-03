@@ -514,7 +514,6 @@ export class TabsService {
     }
   ) {
     if (!bookId) return;
-    console.log('patch', patch);
 
     try {
       await fetch(`${environment.apiBase}/api/books/${encodeURIComponent(bookId)}/meta`, {

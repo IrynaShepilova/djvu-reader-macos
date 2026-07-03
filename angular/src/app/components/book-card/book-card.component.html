@@ -15,6 +15,9 @@
 
   <div class="info">
     <div class="title">{{ book.title || book.url }}</div>
+    @if (book.author) {
+      <div class="author">{{ book.author }}</div>
+    }
     <div class="extras">
       <div class="readProgress">
         @if (book.lastOpenedAt) {

@@ -28,6 +28,7 @@ import { ScanFoldersFacade } from '../../services/scan-folders-facade';
 import { BookCardComponent } from '../book-card/book-card.component';
 import { MatIcon } from '@angular/material/icon';
 import {LibraryToolbarComponent} from '../library-toolbar/library-toolbar.component';
+import { EditBookDialogComponent } from '../edit-book-dialog/edit-book-dialog.component';
 
 declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
@@ -175,7 +176,7 @@ export class LibraryComponent implements OnInit {
         this.previewInFlight.add(b.id);
 
         try {
-          const url = await this.buildPreview(b);
+          const url = await this.bookService.buildPreview(b);
           if (runId !== this.previewsRunId) return;
 
           this.previewCache.set(b.id, url);
@@ -191,57 +192,6 @@ export class LibraryComponent implements OnInit {
 
     await Promise.all(Array.from({ length: concurrency }, worker));
   }
-
-  private async buildPreview(b: Book): Promise<string> {
-    const fileUrl = `${this.apiBase}${b.url}`;
-    const buf = await fetch(fileUrl).then(r => r.arrayBuffer());    const doc = new (DjVu as any).Document(buf);
-    const page1 = await doc.getPage(1);
-    const img = await page1.getImageData();
-
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = img.width;
-    srcCanvas.height = img.height;
-    srcCanvas.getContext('2d')!.putImageData(img, 0, 0);
-
-    const targetW = 400;
-    const scale = targetW / img.width;
-    const targetH = Math.max(1, Math.round(img.height * scale));
-
-    const dstCanvas = document.createElement('canvas');
-    dstCanvas.width = targetW;
-    dstCanvas.height = targetH;
-
-    const ctx = dstCanvas.getContext('2d')!;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    ctx.drawImage(srcCanvas, 0, 0, targetW, targetH);
-
-    const blob = await new Promise<Blob | null>(res =>
-      dstCanvas.toBlob(res, 'image/jpeg', 0.55)
-    );
-    if (!blob) throw new Error('toBlob failed');
-
-    try {
-      await this.uploadCover(b.id, blob);
-    } catch (e) {
-      console.warn('Cover upload failed (non-blocking)', e);
-    }
-
-    return URL.createObjectURL(blob);
-  }
-
-  private async uploadCover(bookId: string, blob: Blob): Promise<void> {
-    const fd = new FormData();
-    fd.append('cover', blob, 'cover.jpg');
-
-    await fetch(`${this.apiBase}/api/books/${encodeURIComponent(bookId)}/cover`, {
-      method: 'POST',
-      body: fd,
-    });
-  }
-
-
 
   open(file: string) {
     this.router.navigate(['/reader', file]);
@@ -658,6 +608,105 @@ export class LibraryComponent implements OnInit {
   }
 
   openEditBookDialog(book: Book) {
-    console.log('edit book', book);
+    const ref = this.dialog.open(EditBookDialogComponent, {
+      width: '800px',
+      maxWidth: '95vw',
+      height: '600px',
+      data: {
+        book,
+        coverUrl: this.previewMap()[book.id],
+      }
+    });
+
+    ref.afterClosed().subscribe(result => {
+      if (!result) return;
+
+      if (result.patch) {
+        void this.updateBookMeta(result.book.id, result.patch);
+      }
+
+      if (result.coverFile) {
+        void this.updateBookCover(result.book.id, result.coverFile);
+      }
+
+      if (result.removeCover) {
+         this.removeBookCover(result.book);
+      }
+
+    });
   }
+
+  async updateBookMeta(id: string, patch: Partial<Book>) {
+    try {
+      const res = await this.bookService
+        .updateBookMeta(id, patch)
+        .toPromise();
+
+      if (!res?.book) return;
+
+      this.books.update(books =>
+        books.map(book =>
+          book.id === id ? { ...book, ...res.book } : book
+        )
+      );
+    } catch (e) {
+      console.error('Failed to update book meta', e);
+    }
+  }
+
+  async updateBookCover(id: string, file: File) {
+    try {
+      const res = await this.bookService
+        .uploadCover(id, file)
+        .toPromise();
+
+      if (!res?.coverUrl) return;
+
+      this.books.update(books =>
+        books.map(book =>
+          book.id === id
+            ? { ...book, cover: res.coverUrl }
+            : book
+        )
+      );
+
+      this.previewMap.update(map => ({
+        ...map,
+        [id]: `${this.apiBase}${res.coverUrl}?t=${Date.now()}`,
+      }));
+
+    } catch (e) {
+      console.error('Failed to update cover', e);
+    }
+  }
+
+  async removeBookCover(book: Book) {
+    try {
+      await this.bookService.deleteCover(book.id).toPromise();
+
+      const bookWithoutCover = {
+        ...book,
+        cover: '',
+      };
+
+      this.books.update(books =>
+        books.map( b =>
+          b.id === book.id ? bookWithoutCover : b
+        )
+      );
+
+      this.previewCache.delete(book.id);
+
+      const previewUrl = await this.bookService.buildPreview(bookWithoutCover);
+
+      this.previewCache.set(book.id, previewUrl);
+      this.previewMap.update(map => ({
+        ...map,
+        [book.id]: previewUrl,
+      }));
+    } catch (e) {
+      console.error('Failed to remove cover', e);
+    }
+  }
+
 }

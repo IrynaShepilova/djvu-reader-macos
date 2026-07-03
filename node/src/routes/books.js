@@ -288,6 +288,25 @@ function normalizeBookMetaPatch(body = {}) {
         patch.lastOpenedAt = body.lastOpenedAt;
     }
 
+    if (body.title !== undefined) {
+        if (typeof body.title !== 'string' || !body.title.trim()) {
+            throw new Error('title must be a non-empty string');
+        }
+
+        patch.title = body.title.trim();
+    }
+
+    if (body.author !== undefined) {
+        if (
+            body.author !== null &&
+            typeof body.author !== 'string'
+        ) {
+            throw new Error('author must be a string or null');
+        }
+
+        patch.author = body.author?.trim() || null;
+    }
+
     if (body.favorite !== undefined) {
         if (typeof body.favorite !== 'boolean') {
             throw new Error('favorite must be a boolean');
@@ -298,6 +317,33 @@ function normalizeBookMetaPatch(body = {}) {
 
     return patch;
 }
+
+router.delete('/api/books/:id/cover', (req, res) => {
+    const id = req.params.id;
+
+    const items = readLibrary();
+    const book = items.find(b => b.id === id);
+
+    if (!book) return res.status(404).json({ error: 'Book not found' });
+
+    if (book.cover) {
+        const fileName = path.basename(book.cover);
+        const coverPath = path.join(coversDir, fileName);
+
+        if (fs.existsSync(coverPath)) {
+            fs.unlinkSync(coverPath);
+        }
+    }
+
+    book.cover = '';
+    writeLibrary(items);
+
+    res.json({
+        ok: true,
+        id,
+        cover: '',
+    });
+});
 
 function markBookInvalid(id) {
     const items = readLibrary();

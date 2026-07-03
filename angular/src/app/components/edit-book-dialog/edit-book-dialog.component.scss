@@ -1,0 +1,111 @@
+.edit-book-dialog {
+  min-width: 700px;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 32px;
+  align-items: start;
+  margin: 20px;
+}
+
+.form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  span {
+    font-size: 14px;
+    color: #444;
+  }
+
+  input {
+    height: 42px;
+    padding: 0 14px;
+    border: 1px solid #d7d7d7;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  input:focus {
+    border-color: #999;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.favorite-row {
+  margin-left: -10px;
+}
+
+.cover-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.cover-wrapper {
+  position: relative;
+}
+
+.cover-preview {
+  width: 170px;
+  height: 210px;
+  object-fit: contain;
+
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  background: #fafafa;
+  padding: 4px;
+}
+
+.remove-cover-btn {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+
+  width: 32px;
+  height: 32px;
+
+  border: 1px solid #d7d7d7;
+  border-radius: 50%;
+  background: white;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background .15s;
+}
+
+.remove-cover-btn:hover {
+  background: #f5f5f5;
+}
+
+.remove-cover-btn mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.edit-book-dialog-actions {
+  margin: 20px;
+}
+
+.btn.close {
+  margin-right: 10px;
+}
+
+.btn.change-cover-btn {
+  width: 100%;
+  justify-content: center;
+}

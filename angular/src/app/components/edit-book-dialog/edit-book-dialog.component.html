@@ -1,0 +1,43 @@
+<div mat-dialog-content class="edit-book-dialog" [formGroup]="form">
+  <div class="cover-section">
+    <div class="cover-wrapper">
+      <img
+        class="cover-preview"
+        [src]="coverPreviewUrl || data.coverUrl || '/assets/default-cover.png'"
+        alt="Book cover"
+      />
+
+      @if (data.book.cover || selectedCoverFile) {
+        <button class="remove-cover-btn" type="button" (click)="removeCover()">
+          <mat-icon class="material-symbols-outlined">close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <button class="btn change-cover-btn" type="button" (click)="coverInput.click()">
+      Change cover
+    </button>
+
+    <input #coverInput type="file" accept="image/*" hidden (change)="onCoverSelected($event)" />
+  </div>
+
+  <div class="form-fields">
+    <label class="field">
+      <span>Title</span>
+      <input type="text" formControlName="title" />
+    </label>
+
+    <label class="field">
+      <span>Author</span>
+      <input type="text" formControlName="author" />
+    </label>
+
+    <div class="favorite-row">
+      <mat-checkbox formControlName="favorite">Favorite</mat-checkbox>
+    </div>
+  </div>
+</div>
+<div mat-dialog-actions align="end" class="edit-book-dialog-actions">
+  <button  class="btn close" type="button" (click)="close()">Close</button>
+  <button  class="btn primary" type="button" (click)="save()">Save</button>
+</div>
