@@ -3,8 +3,6 @@ import {
   computed,
   OnInit,
   signal,
-  ViewChild,
-  WritableSignal,
   ElementRef,
   HostListener,
   inject,
@@ -19,7 +17,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { DialogComponent } from '../dialog/dialog.component';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 import {FormsModule} from '@angular/forms';
-import {timestamp} from 'rxjs';
 import { ScanFolder } from '../../interfaces/scan-folder';
 import { ScanFoldersService } from '../../services/scan-folders.service';
 import { ScanFoldersDialogComponent } from '../scan-folders-dialog/scan-folders-dialog.component';
@@ -30,7 +27,6 @@ import { MatIcon } from '@angular/material/icon';
 import {LibraryToolbarComponent} from '../library-toolbar/library-toolbar.component';
 import { EditBookDialogComponent } from '../edit-book-dialog/edit-book-dialog.component';
 
-declare const DjVu: any;
 type LibraryViewMode = 'tile' | 'list';
 type SortMode = 'default' | 'lastOpened' |'byDirectory' | 'title' | 'category';
 
@@ -105,11 +101,9 @@ export class LibraryComponent implements OnInit {
 
   searchOpen = signal(false);
   searchQuery = signal('');
+  private readonly LS_LIBRARY_SEARCH = 'djvu.library.searchQuery.v1';
 
   showScrollTop = signal(false);
-
-
-
 
 
   @HostListener('window:scroll')
@@ -121,7 +115,7 @@ export class LibraryComponent implements OnInit {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
 
-    this.scrollToPreviousPosition();
+    this.restoreLibraryState();
 
     void this.scanFoldersFacade.loadFolders();
 
@@ -296,7 +290,7 @@ export class LibraryComponent implements OnInit {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
     await this.generatePreviews(list);
-    this.scrollToPreviousPosition();
+    this.restoreLibraryState();
   }
 
   setViewMode(mode: LibraryViewMode) {
@@ -539,15 +533,22 @@ export class LibraryComponent implements OnInit {
     this.searchQuery.set('');
   }
 
+  private normalizeForSearch(value: string): string {
+    return value
+      .normalize('NFC')
+      .toLowerCase()
+      .trim();
+  }
+
   readonly filteredBooks = computed(() => {
-    const query = this.searchQuery().trim().toLowerCase();
+    const query = this.normalizeForSearch(this.searchQuery());
 
     if (!query) return this.books();
 
     return this.books().filter(book => {
-      const title = book.title?.toLowerCase() ?? '';
-      const filename = book.filename?.toLowerCase() ?? '';
-      const fullPath = book.fullPath?.toLowerCase() ?? '';
+      const title = this.normalizeForSearch(book.title ?? '');
+      const filename = this.normalizeForSearch(book.filename ?? '');
+      const fullPath = this.normalizeForSearch(book.fullPath ?? '');
 
       return (
         title.includes(query) ||
@@ -556,6 +557,15 @@ export class LibraryComponent implements OnInit {
       );
     });
   });
+
+  restoreSearchQuery(){
+    const savedSearch = sessionStorage.getItem(this.LS_LIBRARY_SEARCH);
+
+    if (savedSearch !== null) {
+      this.searchQuery.set(savedSearch);
+      this.searchOpen.set(!!savedSearch);
+    }
+  }
 
   scrollToPreviousPosition(){
     const id = sessionStorage.getItem('djvu.library.lastBookId');
@@ -575,11 +585,18 @@ export class LibraryComponent implements OnInit {
     });
   }
 
-  protected readonly timestamp = timestamp;
+  private restoreLibraryState() {
+    this.restoreSearchQuery();
+
+    setTimeout(() => {
+      this.scrollToPreviousPosition();
+    });
+  }
 
   saveCurrentScrollPosition(book: Book) {
     sessionStorage.setItem('djvu.library.lastBookId', book.id);
     sessionStorage.setItem('djvu.library.scrollY', String(window.scrollY));
+    sessionStorage.setItem(this.LS_LIBRARY_SEARCH, this.searchQuery());
   }
 
   scrollToTop() {

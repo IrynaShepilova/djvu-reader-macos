@@ -35,6 +35,16 @@
     <div class="favorite-row">
       <mat-checkbox formControlName="favorite">Favorite</mat-checkbox>
     </div>
+
+    <div class="form-fields">
+      <label class="field"><span>Filename: </span></label>
+      <span>{{data.book.filename}}</span>
+    </div>
+
+    <div class="form-fields">
+      <label class="field"><span>Fullpath: </span></label>
+      <span>{{data.book.fullPath}}</span>
+    </div>
   </div>
 </div>
 <div mat-dialog-actions align="end" class="edit-book-dialog-actions">
