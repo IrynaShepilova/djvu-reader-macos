@@ -54,18 +54,10 @@ export class TabsBarComponent implements OnInit {
   onClose(tabId: string, event: MouseEvent) {
     event.stopPropagation();
 
-    const wasActive = this.tabsService.activeTabId === tabId;
-
     this.tabsService.closeTab(tabId);
 
-    if (wasActive) {
-      const next = this.tabsService.activeTabId;
-      if (next) {
-        this.router.navigate(['/reader', next]);
-      } else {
-        this.goHome();
-      }
-    }
+    this.goHome();
+
   }
 
   goHome() {

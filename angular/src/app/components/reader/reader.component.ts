@@ -63,9 +63,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       );
       if (!el) return;
 
-      el.scrollIntoView({
+      container.scrollTo({
+        top: el.offsetTop,
         behavior: smooth ? 'smooth' : 'instant',
-        block: 'start'
       });
     });
   }
