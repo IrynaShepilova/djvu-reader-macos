@@ -63,8 +63,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       );
       if (!el) return;
 
+      const contRect = container.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const targetScrollTop = container.scrollTop + (elRect.top - contRect.top);
+
       container.scrollTo({
-        top: el.offsetTop,
+        top: targetScrollTop,
         behavior: smooth ? 'smooth' : 'instant',
       });
     });
@@ -98,7 +102,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   async goToPage(page: number) {
-    console.log('page', page);
     const p = this.normalizePage(page);
     this.state.currentPage = p;
     this.saveCurrentPage();
@@ -118,7 +121,11 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     const el = cont.querySelector(`[data-index="${index}"]`);
     if (el) {
-      el.scrollIntoView({
+      const contRect = cont.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const targetScrollTop = cont.scrollTop + (elRect.top - contRect.top);
+      cont.scrollTo({
+        top: targetScrollTop,
         behavior: smooth ? 'smooth' : 'auto',
       });
     }
