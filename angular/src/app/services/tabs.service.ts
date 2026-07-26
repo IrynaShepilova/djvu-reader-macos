@@ -4,13 +4,14 @@ import { Tab } from '../interfaces/tab';
 import { Book } from '../interfaces/book';
 import {TabState} from '../interfaces/tabState';
 import {environment} from '../../environments/environment';
+import { Router } from '@angular/router';
 
 declare const DjVu: any;
 
 @Injectable({ providedIn: 'root' })
 export class TabsService {
 
-  constructor() {
+  constructor(private router: Router) {
     this.restoreTabs();
   }
 
@@ -418,6 +419,14 @@ export class TabsService {
         if (!this.tabStates.has(t.id)) {
           this.tabStates.set(t.id, this.createEmptyState(t.id, t.book.url));
         }
+      }
+      if (active) {
+        queueMicrotask(() => {
+          void this.router.navigate(
+            ['/reader', active],
+            { replaceUrl: true },
+          );
+        });
       }
 
       this.touchActiveBook(active);
