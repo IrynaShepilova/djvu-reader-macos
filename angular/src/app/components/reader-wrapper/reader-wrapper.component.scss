@@ -1,0 +1,60 @@
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+  box-sizing: border-box;
+
+  h2 {
+    margin: 0 0 32px;
+    font-size: 28px;
+    font-weight: 600;
+    color: #333;
+  }
+}
+
+.errorInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+  max-width: 900px;
+  width: 100%;
+}
+
+.errorImage {
+  flex-shrink: 0;
+
+  img {
+    width: 220px;
+    max-width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+    display: block;
+  }
+}
+
+.errorNotes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-top: 20px;
+
+  .error-text {
+    padding-bottom: 1.5em;
+    line-height: 1.5;
+    color: #444;
+    border-bottom: 1px solid #e4e4e4;
+
+    &.error {
+      color: red;
+      font-weight: 600;
+    }
+  }
+
+  .label {
+    font-weight: 600;
+  }
+}
+
+
+

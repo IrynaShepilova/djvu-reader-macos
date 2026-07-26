@@ -1,4 +1,22 @@
 <app-tabs-bar></app-tabs-bar>
-@if (state) {
-  <app-reader [state]="state" [tabId]="tabId"></app-reader>
+@if (loadError) {
+  <div class="errorContainer">
+    <h2>There was a problem loading this file</h2>
+    <div class="errorInfo">
+      <div class="errorImage">
+        <img [src]="errorCoverUrl" alt="cover">
+      </div>
+      <div class="errorNotes">
+        <p class="error-text error">{{ loadError }}</p>
+        <p class="error-text"> <span class="label">Book name: </span>{{errorBookInfo?.title}}</p>
+        <p class="error-text"> <span class="label">Book path: </span> {{errorBookInfo?.book?.fullPath}}</p>
+      </div>
+    </div>
+
+  </div>
+} @else {
+  @if (state) {
+    <app-reader [state]="state" [tabId]="tabId"></app-reader>
+  }
 }
+

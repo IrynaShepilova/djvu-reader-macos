@@ -4,6 +4,8 @@ import { ReaderComponent } from '../reader/reader.component';
 import { TabsService } from '../../services/tabs.service';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
 import {TabState} from '../../interfaces/tabState';
+import {Tab} from '../../interfaces/tab';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-reader-wrapper',
@@ -19,7 +21,9 @@ export class ReaderWrapperComponent implements OnInit {
   readerImg!: ReaderComponent;
   state: TabState | null = null;
   tabId!: string;
-
+  loadError: Error | null = null;
+  errorBookInfo: Tab | undefined = undefined;
+  errorCoverUrl: string | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -40,7 +44,11 @@ export class ReaderWrapperComponent implements OnInit {
         }
 
         if (!this.state?.loadingDone && !this.state?.loading) {
-          await this.tabsService.loadBook(tabId);
+          await this.tabsService.loadBook(tabId).catch(err => {
+            this.loadError = err;
+            this.errorBookInfo = this.tabsService.getTabInfo(tabId);
+            this.errorCoverUrl = this.resolveCoverUrl(this.errorBookInfo?.book.cover);
+          });
         }
 
         const saved = this.tabsService.getSavedPageForTab(tabId);
@@ -56,6 +64,21 @@ export class ReaderWrapperComponent implements OnInit {
         });
       }
     });
+  }
+
+  private resolveCoverUrl(cover?: string | null): string | null {
+    if (!cover) return null;
+
+    if (
+      cover.startsWith('http://') ||
+      cover.startsWith('https://') ||
+      cover.startsWith('blob:') ||
+      cover.startsWith('data:')
+    ) {
+      return cover;
+    }
+
+    return `${environment.apiBase}${cover.startsWith('/') ? '' : '/'}${cover}`;
   }
 
 }

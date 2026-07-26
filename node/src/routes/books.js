@@ -61,7 +61,7 @@ router.get('/api/books/file/:id', (req, res) => {
     }
 
     if (!fs.existsSync(book.fullPath)) {
-        return res.status(404).send('File missing on disk');
+        return res.status(404).send('The book file is not available.');
     }
 
     res.sendFile(book.fullPath);

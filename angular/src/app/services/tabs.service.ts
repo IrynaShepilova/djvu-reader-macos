@@ -133,7 +133,23 @@ export class TabsService {
 
     try {
       const fileUrl = `${environment.apiBase}${tab.book.url}`;
-      const buf = await fetch(fileUrl).then(r => r.arrayBuffer());
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        const backendMessage = await response.text();
+
+        if (response.status === 404) {
+          throw new Error(
+            backendMessage || 'Book file is not available'
+          );
+        }
+
+        throw new Error(
+          backendMessage || `Failed to load book (${response.status})`
+        );
+      }
+
+      const buf = await response.arrayBuffer();
 
       const doc = new DjVu.Document(buf);
       state.document = doc;
@@ -151,6 +167,7 @@ export class TabsService {
 
     } catch (err) {
       console.error('DjVu load failed:', err);
+      throw err;
     } finally {
       state.loading = false;
     }
@@ -502,6 +519,10 @@ export class TabsService {
     const bookUrl = this.getBookUrlByTabId(tabId);
     if (!bookUrl) return null;
     return this.restoreLastPage(bookUrl);
+  }
+
+  getTabInfo(tabId: string): Tab | undefined {
+    return this.tabs.find(t => t.id === tabId);
   }
 
   setHomeActive() {
