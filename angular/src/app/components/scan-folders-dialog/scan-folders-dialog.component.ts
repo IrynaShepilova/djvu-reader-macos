@@ -1,5 +1,5 @@
 import {Component, OnInit, Signal, signal} from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,7 +13,7 @@ import { ScanFoldersFacade } from '../../services/scan-folders-facade';
 @Component({
   selector: 'app-scan-folders-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatCheckboxModule],
+  imports: [FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatCheckboxModule],
   templateUrl: './scan-folders-dialog.component.html',
   styleUrl: './scan-folders-dialog.component.scss',
 })

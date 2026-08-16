@@ -1,5 +1,5 @@
 import { Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
@@ -19,13 +19,12 @@ type EditBookDialogData = {
   standalone: true,
   templateUrl: './edit-book-dialog.component.html',
   imports: [
-    CommonModule,
     MatDialogModule,
     MatButtonModule,
     ReactiveFormsModule,
     MatCheckbox,
-    MatIcon,
-  ],
+    MatIcon
+],
   styleUrl: './edit-book-dialog.component.scss',
 })
 export class EditBookDialogComponent implements OnInit {
