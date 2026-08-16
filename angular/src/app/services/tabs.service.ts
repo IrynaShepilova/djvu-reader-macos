@@ -22,11 +22,16 @@ export class TabsService {
   activeTabId$ = this.activeTabIdSubject.asObservable();
 
   private tabStates = new Map<string, TabState>();
+  private tabStateSubjects = new Map<
+    string,
+    BehaviorSubject<TabState>
+  >();
 
   private readonly LS_TABS = 'djvu.tabs.v1';
   private readonly LS_ACTIVE = 'djvu.activeTabId.v1';
   private readonly LS_PAGE_PREFIX = 'djvu.lastPageByBookUrl.v1:'; // key = prefix + book.url
 
+  private readonly loadVersions = new Map<string, number>();
 
   get tabs(): Tab[] {
     return this.tabsSubject.value;
@@ -75,6 +80,7 @@ export class TabsService {
     this.tabsSubject.next(remaining);
 
     this.tabStates.delete(id);
+    this.tabStateSubjects.delete(id);
 
     if (this.activeTabId === id) {
       const next = remaining[remaining.length - 1] || null;
@@ -111,6 +117,9 @@ export class TabsService {
     const tab = this.tabs.find(t => t.id === tabId);
     if (!tab) return;
 
+    const loadVersion = (this.loadVersions.get(tabId) ?? 0) + 1;
+    this.loadVersions.set(tabId, loadVersion);
+
     const state = this.ensureTabState(tabId);
     if (!state) return;
 
@@ -120,6 +129,7 @@ export class TabsService {
 
     state.loading = true;
     state.loadingProgress = 0;
+    this.emitState(tabId);
     state.loadingDone = false;
 
     if (forceReload) {
@@ -162,8 +172,9 @@ export class TabsService {
       await this.loadInitialPages(tabId, 2);
 
       state.loadingDone = true;
+      this.emitState(tabId);
 
-      void this.loadRemainingPagesInBackground(tabId, 10);
+      void this.loadRemainingPagesInBackground(tabId, 10, loadVersion);
 
     } catch (err) {
       console.error('DjVu load failed:', err);
@@ -235,6 +246,7 @@ export class TabsService {
 
         const loadedCount = Math.min(i + batchSize - 1, total);
         state.loadingProgress = Math.round((loadedCount / total) * 100);
+        this.emitState(tabId);
 
         i += batchSize;
 
@@ -269,28 +281,58 @@ export class TabsService {
     await this.loadPagesByIndexes(tabId, indexes);
   }
 
-  private async loadRemainingPagesInBackground(tabId: string, batchSize = 10): Promise<void> {
+  private async loadRemainingPagesInBackground(
+    tabId: string,
+    batchSize = 10,
+    loadVersion: number,
+  ): Promise<void> {
     const state = this.tabStates.get(tabId);
-    if (!state || !state.document) return;
 
-    const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
-    const ordered = this.buildRemainingPageOrder(current, state.totalPages);
+    if (
+      !state ||
+      !state.document ||
+      this.loadVersions.get(tabId) !== loadVersion
+    ) {
+      return;
+    }
+
+    const current = Math.max(
+      1,
+      Math.min(state.currentPage || 1, state.totalPages)
+    );
+
+    const ordered = this.buildRemainingPageOrder(
+      current,
+      state.totalPages
+    );
 
     let cursor = 0;
 
     return new Promise<void>((resolve) => {
       const loadBatch = async () => {
         const freshState = this.tabStates.get(tabId);
-        if (!freshState || !freshState.document) {
+
+        if (
+          !freshState ||
+          !freshState.document ||
+          this.loadVersions.get(tabId) !== loadVersion
+        ) {
           resolve();
           return;
         }
 
-        const alreadyLoaded = new Set(freshState.allPages.map(p => p.index));
+        const alreadyLoaded = new Set(
+          freshState.allPages.map(page => page.index)
+        );
+
         const batch: number[] = [];
 
-        while (cursor < ordered.length && batch.length < batchSize) {
+        while (
+          cursor < ordered.length &&
+          batch.length < batchSize
+          ) {
           const page = ordered[cursor++];
+
           if (!alreadyLoaded.has(page)) {
             batch.push(page);
           }
@@ -300,18 +342,27 @@ export class TabsService {
           await this.loadPagesByIndexes(tabId, batch);
         }
 
+        if (this.loadVersions.get(tabId) !== loadVersion) {
+          resolve();
+          return;
+        }
+
         if (cursor < ordered.length) {
           if ('requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(loadBatch);
+            window.requestIdleCallback(() => {
+              void loadBatch();
+            });
           } else {
-            setTimeout(loadBatch, 0);
+            setTimeout(() => {
+              void loadBatch();
+            }, 0);
           }
         } else {
           resolve();
         }
       };
 
-      loadBatch();
+      void loadBatch();
     });
   }
 
@@ -331,6 +382,11 @@ export class TabsService {
         const imgData = await page.getImageData();
         const url = await this.imageDataToUrl(imgData);
 
+        if (state.allPages.some(existing => existing.index === p)) {
+          URL.revokeObjectURL(url);
+          continue;
+        }
+
         state.allPages.push({
           index: p,
           url,
@@ -339,10 +395,10 @@ export class TabsService {
         });
 
         existingIndexes.add(p);
-
         state.allPages.sort((a, b) => a.index - b.index);
 
         state.loadingProgress = Math.round((state.allPages.length / state.totalPages) * 100);
+        this.emitState(tabId);
       } catch (err) {
         console.warn(`Error loading page ${p}:`, err);
       }
@@ -556,6 +612,36 @@ export class TabsService {
     }
   }
 
+  private getStateSubject(
+    tabId: string,
+    state: TabState
+  ): BehaviorSubject<TabState> {
+    let subject = this.tabStateSubjects.get(tabId);
+
+    if (!subject) {
+      subject = new BehaviorSubject<TabState>(state);
+      this.tabStateSubjects.set(tabId, subject);
+    }
+
+    return subject;
+  }
+
+  getState$(tabId: string) {
+    const state = this.ensureTabState(tabId);
+
+    if (!state) {
+      throw new Error(`Tab state not found: ${tabId}`);
+    }
+
+    return this.getStateSubject(tabId, state).asObservable();
+  }
+
+  private emitState(tabId: string) {
+    const state = this.tabStates.get(tabId);
+    if (!state) return;
+
+    this.getStateSubject(tabId, state).next(state);
+  }
 
 }
 

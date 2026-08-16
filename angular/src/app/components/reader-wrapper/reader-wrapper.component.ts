@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { ReaderComponent } from '../reader/reader.component';
 import { TabsService } from '../../services/tabs.service';
@@ -28,6 +28,7 @@ export class ReaderWrapperComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private tabsService: TabsService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit() {
@@ -37,33 +38,31 @@ export class ReaderWrapperComponent implements OnInit {
 
       if (this.tabId !== tabId) {
         this.tabId = tabId;
-        this.state = this.tabsService.getState(tabId);
-        if (!this.state) {
-          this.tabsService.ensureTabState(tabId);
-          this.state = this.tabsService.getState(tabId);
-        }
-
-        if (!this.state?.loadingDone && !this.state?.loading) {
-          await this.tabsService.loadBook(tabId).catch(err => {
-            this.loadError = err;
-            this.errorBookInfo = this.tabsService.getTabInfo(tabId);
-            this.errorCoverUrl = this.resolveCoverUrl(this.errorBookInfo?.book.cover);
-          });
-        }
-
-        const saved = this.tabsService.getSavedPageForTab(tabId);
-        if (this.state && saved) {
-          const max = this.state.totalPages || 1;
-          this.state.currentPage = Math.min(Math.max(1, saved), max);
-        }
-
-        queueMicrotask(() => {
-          if (this.readerImg && this.state) {
-            this.readerImg.focusCurrentPage();
-          }
-        });
+        await this.loadCurrentTab();
       }
     });
+  }
+
+  private async loadCurrentTab(forceReload = false) {
+    this.resetLoadError();
+
+    this.state = this.tabsService.getState(this.tabId);
+
+    if (!this.state) {
+      this.tabsService.ensureTabState(this.tabId);
+      this.state = this.tabsService.getState(this.tabId);
+    }
+
+    if (forceReload || (!this.state?.loadingDone && !this.state?.loading)) {
+      await this.loadCurrentBook(forceReload);
+    }
+
+    if (!this.loadError) {
+      this.restorePosition();
+      this.cdr.detectChanges();
+      this.readerImg?.focusCurrentPage();
+    }
+
   }
 
   private resolveCoverUrl(cover?: string | null): string | null {
@@ -79,6 +78,43 @@ export class ReaderWrapperComponent implements OnInit {
     }
 
     return `${environment.apiBase}${cover.startsWith('/') ? '' : '/'}${cover}`;
+  }
+
+  async retry() {
+    await this.loadCurrentTab(true);
+  }
+
+  private async loadCurrentBook(forceReload = false) {
+    await this.tabsService
+      .loadBook(this.tabId, forceReload)
+      .catch(err => this.setLoadError(err));
+  }
+
+  private setLoadError(err: Error) {
+    this.loadError = err;
+    this.errorBookInfo = this.tabsService.getTabInfo(this.tabId);
+    this.errorCoverUrl = this.resolveCoverUrl(
+      this.errorBookInfo?.book.cover
+    );
+  }
+
+  private resetLoadError() {
+    this.loadError = null;
+    this.errorBookInfo = undefined;
+    this.errorCoverUrl = null;
+  }
+
+  private restorePosition() {
+    const saved = this.tabsService.getSavedPageForTab(this.tabId);
+
+    if (!this.state || !saved) return;
+
+    const max = this.state.totalPages || 1;
+
+    this.state.currentPage = Math.min(
+      Math.max(1, saved),
+      max,
+    );
   }
 
 }

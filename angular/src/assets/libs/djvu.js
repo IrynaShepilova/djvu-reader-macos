@@ -1132,7 +1132,7 @@ var DjVu = (function () {
                         this.dict.push(cbm.removeEmptyEdges());
                         break;
                     case 9:
-                        console.log("RESET DICT");
+                        // console.log("RESET DICT");
                         this.resetNumContexts();
                         break;
                     case 10:

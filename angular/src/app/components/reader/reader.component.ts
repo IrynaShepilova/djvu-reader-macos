@@ -1,11 +1,12 @@
 import {
   AfterViewInit,
-  Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, ViewChild
+  Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild
 } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import {TabState} from '../../interfaces/tabState';
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
+import {Subscription} from 'rxjs';
 
 type PageLayoutMode = 'single' | 'spread';
 type FitMode = 'none' | 'width' | 'height';
@@ -32,6 +33,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   private readonly apiBase = environment.apiBase;
   private prevPageCount = 0;
   private prevTabCurrentPage = 0;
+   stateSub?: Subscription;
   suppressScrollDetect = false;
 
   layoutMode: PageLayoutMode = 'single';
@@ -52,25 +54,24 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.scrollToPage(index);
   }
 
+  scrollToPage(index: number, smooth = true) {
+    const container = this.pagesRef?.nativeElement;
+    if (!container) return;
 
-  scrollToPage(index: number, smooth: boolean = true) {
-    queueMicrotask(() => {
-      const container = this.pagesRef?.nativeElement;
-      if (!container) return;
+    const el = container.querySelector<HTMLImageElement>(
+      `[data-index="${index}"]`
+    );
+    if (!el) return;
 
-      const el = container.querySelector<HTMLImageElement>(
-        `[data-index="${index}"]`
-      );
-      if (!el) return;
+    const contRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
 
-      const contRect = container.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const targetScrollTop = container.scrollTop + (elRect.top - contRect.top);
+    const targetScrollTop =
+      container.scrollTop + (elRect.top - contRect.top);
 
-      container.scrollTo({
-        top: targetScrollTop,
-        behavior: smooth ? 'smooth' : 'instant',
-      });
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: smooth ? 'smooth' : 'instant',
     });
   }
 
@@ -177,11 +178,16 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   focusCurrentPage() {
+    const p = this.normalizePage(this.state.currentPage);
+
+    const container = this.pagesRef?.nativeElement;
+    const el = container?.querySelector<HTMLImageElement>(
+      `[data-index="${p}"]`
+    );
+
     if (!this.state || !this.state.allPages.length) return;
 
     this.suppressScrollDetect = true;
-
-    const p = this.normalizePage(this.state.currentPage);
     this.state.currentPage = p;
 
     this.scrollToPage(p, false);
@@ -195,10 +201,26 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
 
+  ngOnChanges(changes: SimpleChanges): void  {
+    if (changes['tabId']) {
+      this.stateSub?.unsubscribe();
 
+      this.stateSub = this.tabsService
+        .getState$(this.tabId)
+        .subscribe(state => {
+          this.state = state;
+        });
+    }
 
-  ngOnChanges() {
     if (!this.state) return;
+
+    this.stateSub?.unsubscribe();
+
+    this.stateSub = this.tabsService
+      .getState$(this.tabId)
+      .subscribe(state => {
+        this.state = state;
+      });
 
     if (!this.state.allPages.length) return;
 
@@ -223,6 +245,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   ngOnDestroy() {
+    this.stateSub?.unsubscribe();
+
     const container = this.pagesRef?.nativeElement;
     if (container) {
       container.removeEventListener('scroll', this.onScroll);

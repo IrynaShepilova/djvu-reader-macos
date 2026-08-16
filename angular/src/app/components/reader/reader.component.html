@@ -95,6 +95,26 @@
       </button>
     </div>
 
+    <div
+      class="book-load-status"
+      [title]="
+    state.allPages.length >= state.totalPages
+      ? 'Book loaded'
+      : 'Loading pages: ' + state.loadingProgress  + '%'
+  "
+    >
+      @if (state.allPages.length < state.totalPages) {
+        <span class="loading-spinner"></span>
+        <span class="loading-progress"> {{ state.loadingProgress }}%</span>
+      } @else {
+        <span class="loading-complete">
+          <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#4f7d50"><path d="M400-304 240-464l56-56 104 104 264-264 56 56-320 320Z"/></svg>
+        </span>
+      }
+    </div>
+
+    <span class="sep"></span>
+
   </div>
 
 
@@ -111,6 +131,8 @@
           class="page-img"
           [src]="p.url"
           [attr.data-index]="p.index"
+          [attr.width]="p.width"
+          [attr.height]="p.height"
           [alt]="p.index"
         />
       }
@@ -123,6 +145,8 @@
           [class.active]="state.currentPage === p.index"
           [src]="p.url"
           [attr.data-index]="p.index"
+          [attr.width]="p.width"
+          [attr.height]="p.height"
           [title]="p.index"
           (click)="onThumbClick(p.index)"
         />
