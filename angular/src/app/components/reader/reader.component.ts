@@ -155,6 +155,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     let bestIndex = this.normalizePage(this.state.currentPage);
     let bestDist = Infinity;
+    let bestImg: HTMLImageElement | null = null;
 
     for (const img of imgs) {
       const rect = img.getBoundingClientRect();
@@ -167,7 +168,28 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       if (d < bestDist) {
         bestDist = d;
         bestIndex = idx;
+        bestImg = img;
       }
+    }
+
+    if (bestImg) {
+      const contRect = container.getBoundingClientRect();
+      const pageRect = bestImg.getBoundingClientRect();
+
+      const offset = contRect.top - pageRect.top;
+
+      const offsetRatio = Math.max(
+        0,
+        Math.min(1, offset / pageRect.height)
+      );
+
+      this.tabsService.saveReadingPosition(
+        this.tabId,
+        {
+          page: bestIndex,
+          offsetRatio,
+        }
+      );
     }
 
     if (bestIndex !== this.state.currentPage) {
@@ -297,6 +319,52 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   get readerBusy(): boolean {
     return !this.state.loadingDone || this.suppressScrollDetect;
+  }
+
+  restoreReadingPosition(offsetRatio: number) {
+    if (!this.state || !this.state.allPages.length) return;
+
+    this.suppressScrollDetect = true;
+
+    const p = this.normalizePage(this.state.currentPage);
+    this.state.currentPage = p;
+
+    const container = this.pagesRef?.nativeElement;
+    if (!container) {
+      this.suppressScrollDetect = false;
+      return;
+    }
+
+    const el = container.querySelector<HTMLImageElement>(
+      `[data-index="${p}"]`
+    );
+
+    if (!el) {
+      this.suppressScrollDetect = false;
+      return;
+    }
+
+    const contRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+
+    const pageTop =
+      container.scrollTop + (elRect.top - contRect.top);
+
+    const targetScrollTop =
+      pageTop + elRect.height * offsetRatio;
+
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: 'instant',
+    });
+
+    this.scrollToActiveThumbnail(p, false);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.suppressScrollDetect = false;
+      });
+    });
   }
 
 }

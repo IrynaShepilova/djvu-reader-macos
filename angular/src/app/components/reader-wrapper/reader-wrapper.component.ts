@@ -3,7 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { ReaderComponent } from '../reader/reader.component';
 import { TabsService } from '../../services/tabs.service';
 import {TabsBarComponent} from '../tabs-bar/tabs-bar.component';
-import {TabState} from '../../interfaces/tabState';
+import {ReadingPosition, TabState} from '../../interfaces/tabState';
 import {Tab} from '../../interfaces/tab';
 import { environment } from '../../../environments/environment';
 
@@ -24,6 +24,7 @@ export class ReaderWrapperComponent implements OnInit {
   loadError: Error | null = null;
   errorBookInfo: Tab | undefined = undefined;
   errorCoverUrl: string | null = null;
+  savedReadingPosition: ReadingPosition | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -60,7 +61,13 @@ export class ReaderWrapperComponent implements OnInit {
     if (!this.loadError) {
       this.restorePosition();
       this.cdr.detectChanges();
-      this.readerImg?.focusCurrentPage();
+      if (this.savedReadingPosition) {
+        this.readerImg?.restoreReadingPosition(
+          this.savedReadingPosition.offsetRatio
+        );
+      } else {
+        this.readerImg?.focusCurrentPage();
+      }
     }
 
   }
@@ -105,15 +112,16 @@ export class ReaderWrapperComponent implements OnInit {
   }
 
   private restorePosition() {
-    const saved = this.tabsService.getSavedPageForTab(this.tabId);
+    const saved = this.tabsService.getSavedReadingPosition(this.tabId);
+    this.savedReadingPosition = saved;
 
     if (!this.state || !saved) return;
 
     const max = this.state.totalPages || 1;
 
     this.state.currentPage = Math.min(
-      Math.max(1, saved),
-      max,
+      Math.max(1, saved.page),
+      max
     );
   }
 

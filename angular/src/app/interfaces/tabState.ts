@@ -20,3 +20,8 @@ export interface ThumbImage {
   index: number;
   url: string;
 }
+
+export interface ReadingPosition {
+  page: number;
+  offsetRatio: number;
+}

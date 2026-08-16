@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import {BehaviorSubject, defer} from 'rxjs';
 import { Tab } from '../interfaces/tab';
 import { Book } from '../interfaces/book';
-import {TabState} from '../interfaces/tabState';
+import {ReadingPosition, TabState} from '../interfaces/tabState';
 import {environment} from '../../environments/environment';
 import { Router } from '@angular/router';
 
@@ -30,6 +30,7 @@ export class TabsService {
   private readonly LS_TABS = 'djvu.tabs.v1';
   private readonly LS_ACTIVE = 'djvu.activeTabId.v1';
   private readonly LS_PAGE_PREFIX = 'djvu.lastPageByBookUrl.v1:'; // key = prefix + book.url
+  private readonly LS_READING_POSITION_PREFIX = 'djvu.positionByBookUrl.v1:';
 
   private readonly loadVersions = new Map<string, number>();
 
@@ -651,6 +652,60 @@ export class TabsService {
 
     this.tabsSubject.next(tabs);
     this.persistTabs();
+  }
+
+  private readingPositionKey(bookUrl: string) {
+    return `${this.LS_READING_POSITION_PREFIX}${bookUrl}`;
+  }
+
+  saveReadingPosition(tabId: string, position: ReadingPosition) {
+    const bookUrl = this.getBookUrlByTabId(tabId);
+    if (!bookUrl) return;
+
+    const normalized: ReadingPosition = {
+      page: Math.max(1, Math.floor(position.page)),
+      offsetRatio: Math.max(
+        0,
+        Math.min(1, position.offsetRatio)
+      ),
+    };
+
+    localStorage.setItem(
+      this.readingPositionKey(bookUrl),
+      JSON.stringify(normalized)
+    );
+  }
+
+  getSavedReadingPosition(tabId: string): ReadingPosition | null {
+    const bookUrl = this.getBookUrlByTabId(tabId);
+    if (!bookUrl) return null;
+
+    const raw = localStorage.getItem(
+      this.readingPositionKey(bookUrl)
+    );
+
+    if (!raw) return null;
+
+    try {
+      const position = JSON.parse(raw) as ReadingPosition;
+
+      if (
+        !Number.isFinite(position.page) ||
+        !Number.isFinite(position.offsetRatio)
+      ) {
+        return null;
+      }
+
+      return {
+        page: Math.max(1, Math.floor(position.page)),
+        offsetRatio: Math.max(
+          0,
+          Math.min(1, position.offsetRatio)
+        ),
+      };
+    } catch {
+      return null;
+    }
   }
 
 }
