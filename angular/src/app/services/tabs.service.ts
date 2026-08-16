@@ -643,5 +643,15 @@ export class TabsService {
     this.getStateSubject(tabId, state).next(state);
   }
 
+  reorderTabs(previousIndex: number, currentIndex: number) {
+    const tabs = [...this.tabs];
+
+    const [moved] = tabs.splice(previousIndex, 1);
+    tabs.splice(currentIndex, 0, moved);
+
+    this.tabsSubject.next(tabs);
+    this.persistTabs();
+  }
+
 }
 

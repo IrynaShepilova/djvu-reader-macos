@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { Router } from '@angular/router';
 import { TabsService } from '../../services/tabs.service';
 import { Observable } from 'rxjs';
@@ -10,7 +11,7 @@ import { NavigationEnd } from '@angular/router';
 @Component({
   selector: 'app-tabs-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, DragDropModule],
   templateUrl: './tabs-bar.component.html',
   styleUrl: './tabs-bar.component.scss'
 })
@@ -57,7 +58,15 @@ export class TabsBarComponent implements OnInit {
     this.tabsService.closeTab(tabId);
 
     this.goHome();
+  }
 
+  onDrop(event: CdkDragDrop<Tab[]>) {
+    if (event.previousIndex === event.currentIndex) return;
+
+    this.tabsService.reorderTabs(
+      event.previousIndex,
+      event.currentIndex,
+    );
   }
 
   goHome() {

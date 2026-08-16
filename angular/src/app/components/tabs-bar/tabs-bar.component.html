@@ -9,17 +9,30 @@
     🏠
   </button>
 
-  <div class="tabs-scroll">
+  <div
+    class="tabs-scroll"
+    cdkDropList
+    cdkDropListOrientation="horizontal"
+    (cdkDropListDropped)="onDrop($event)"
+  >
 
     @for (tab of tabs$ | async; track tab.id) {
       <div
         class="tab"
+        cdkDrag
+        [cdkDragData]="tab"
         [class.active]="(activeId$ | async) === tab.id"
         (click)="onActivate(tab.id)"
         [title]="tab.title"
       >
         <span class="title">{{ tab.title }}</span>
-        <button class="close" (click)="onClose(tab.id, $event)">×</button>
+
+        <button
+          class="close"
+          (click)="onClose(tab.id, $event)"
+        >
+          ×
+        </button>
       </div>
     }
 
