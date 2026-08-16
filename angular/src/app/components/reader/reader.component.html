@@ -18,6 +18,29 @@
     <button (click)="goNextPage()">›</button>
     <button (click)="goLastPage()">››</button>
 
+    <span class="sep"></span>
+    <button
+      type="button"
+      class="tool"
+      (click)="goBackHistory()"
+      [disabled]="!canGoBackHistory"
+      [title]="backHistoryTitle"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="m313-440 224 224-57 56-320-320 320-320 57 56-224 224h487v80H313Z"/></svg>
+    </button>
+
+    <button
+      type="button"
+      class="tool"
+      (click)="goForwardHistory()"
+      [disabled]="!canGoForwardHistory"
+      [title]="forwardHistoryTitle"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f"><path d="M647-440H160v-80h487L423-744l57-56 320 320-320 320-57-56 224-224Z"/></svg>
+    </button>
+
+    <span class="sep"></span>
+
     @if (!state.loadingDone) {
       <div class="progress-wrapper">
         <div class="progress-text">{{ state.loadingProgress }}%</div>

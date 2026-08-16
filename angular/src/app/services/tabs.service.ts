@@ -5,6 +5,7 @@ import { Book } from '../interfaces/book';
 import {ReadingPosition, TabState} from '../interfaces/tabState';
 import {environment} from '../../environments/environment';
 import { Router } from '@angular/router';
+import { ReadingHistory } from '../classes/reading-history';
 
 declare const DjVu: any;
 
@@ -33,6 +34,8 @@ export class TabsService {
   private readonly LS_READING_POSITION_PREFIX = 'djvu.positionByBookUrl.v1:';
 
   private readonly loadVersions = new Map<string, number>();
+
+  private tabHistories = new Map<string, ReadingHistory>();
 
   get tabs(): Tab[] {
     return this.tabsSubject.value;
@@ -706,6 +709,61 @@ export class TabsService {
     } catch {
       return null;
     }
+  }
+
+  private getHistory(tabId: string): ReadingHistory {
+    let history = this.tabHistories.get(tabId);
+
+    if (!history) {
+      history = new ReadingHistory(30);
+      this.tabHistories.set(tabId, history);
+    }
+
+    return history;
+  }
+
+  pushHistory(tabId: string, position: ReadingPosition) {
+    this.getHistory(tabId).push(position);
+  }
+
+  goBackInHistory(tabId: string): ReadingPosition | null {
+    return this.getHistory(tabId).back();
+  }
+
+  goForwardInHistory(tabId: string): ReadingPosition | null {
+    return this.getHistory(tabId).forward();
+  }
+
+  canGoBack(tabId: string): boolean {
+    return this.getHistory(tabId).canGoBack();
+  }
+
+  canGoForward(tabId: string): boolean {
+    return this.getHistory(tabId).canGoForward();
+  }
+
+  navigateInHistory(tabId: string, from: ReadingPosition, to: ReadingPosition) {
+    const history = this.getHistory(tabId);
+
+    if (history.isEmpty) {
+      history.push(from);
+    } else {
+      history.updateCurrent(from);
+    }
+
+    history.push(to);
+  }
+
+  getBackHistoryPosition(tabId: string): ReadingPosition | null {
+    return this.getHistory(tabId).getBackPosition();
+  }
+
+  getForwardHistoryPosition(tabId: string): ReadingPosition | null {
+    return this.getHistory(tabId).getForwardPosition();
+  }
+
+  updateCurrentHistoryPosition(tabId: string, position: ReadingPosition) {
+    this.getHistory(tabId).updateCurrent(position);
   }
 
 }

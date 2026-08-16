@@ -7,6 +7,7 @@ import {TabState} from '../../interfaces/tabState';
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
 import {Subscription} from 'rxjs';
+import { ReadingPosition } from '../../interfaces/tabState';
 
 type PageLayoutMode = 'single' | 'spread';
 type FitMode = 'none' | 'width' | 'height';
@@ -49,9 +50,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
 
   onThumbClick(index: number) {
-    this.state.currentPage = index;
-    this.saveCurrentPage();
-    this.scrollToPage(index);
+    void this.goToPage(index);
   }
 
   scrollToPage(index: number, smooth = true) {
@@ -73,6 +72,41 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       top: targetScrollTop,
       behavior: smooth ? 'smooth' : 'instant',
     });
+  }
+
+  async goToPage(page: number, addToHistory = true) {
+    const p = this.normalizePage(page);
+
+    if (addToHistory) {
+      const from =
+        this.tabsService.getSavedReadingPosition(this.tabId) ?? {
+          page: this.state.currentPage,
+          offsetRatio: 0,
+        };
+
+      const to: ReadingPosition = {
+        page: p,
+        offsetRatio: 0,
+      };
+
+      this.tabsService.navigateInHistory(
+        this.tabId,
+        from,
+        to
+      );
+    }
+
+    this.state.currentPage = p;
+    this.saveCurrentPage();
+
+    await this.tabsService.ensurePageWindowLoaded(
+      this.tabId,
+      p,
+      1
+    );
+
+    this.scrollToPage(p);
+    this.scrollToActiveThumbnail(p);
   }
 
   goFirstPage() {
@@ -100,16 +134,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     el.value = String(p);
     await this.goToPage(p);
-  }
-
-  async goToPage(page: number) {
-    const p = this.normalizePage(page);
-    this.state.currentPage = p;
-    this.saveCurrentPage();
-
-    await this.tabsService.ensurePageWindowLoaded(this.tabId, p, 1);
-    this.scrollToPage(p);
-    this.scrollToActiveThumbnail(p);
   }
 
   onInputFocus(input: HTMLInputElement) {
@@ -321,7 +345,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     return !this.state.loadingDone || this.suppressScrollDetect;
   }
 
-  restoreReadingPosition(offsetRatio: number) {
+  async restoreReadingPosition(offsetRatio: number, smooth = false) {
     if (!this.state || !this.state.allPages.length) return;
 
     this.suppressScrollDetect = true;
@@ -330,6 +354,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.state.currentPage = p;
 
     const container = this.pagesRef?.nativeElement;
+
     if (!container) {
       this.suppressScrollDetect = false;
       return;
@@ -353,17 +378,120 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     const targetScrollTop =
       pageTop + elRect.height * offsetRatio;
 
+    this.scrollToActiveThumbnail(p, smooth);
+
+    if (smooth) {
+      await this.smoothScrollTo(
+        container,
+        targetScrollTop,
+        180
+      );
+
+      this.suppressScrollDetect = false;
+      return;
+    }
+
     container.scrollTo({
       top: targetScrollTop,
       behavior: 'instant',
     });
 
-    this.scrollToActiveThumbnail(p, false);
-
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this.suppressScrollDetect = false;
       });
+    });
+  }
+
+  private async goToPosition(position: ReadingPosition, smooth = true) {
+    await this.goToPage(position.page, false);
+
+    this.tabsService.saveReadingPosition(
+      this.tabId,
+      position
+    );
+
+    await this.restoreReadingPosition(position.offsetRatio, smooth);
+  }
+
+  async goBackHistory() {
+    this.updateCurrentHistoryPosition();
+
+    const position =
+      this.tabsService.goBackInHistory(this.tabId);
+
+    if (!position) return;
+
+    await this.goToPosition(position);
+  }
+
+  async goForwardHistory() {
+    this.updateCurrentHistoryPosition();
+
+    const position =
+      this.tabsService.goForwardInHistory(this.tabId);
+
+    if (!position) return;
+
+    await this.goToPosition(position);
+  }
+
+  get canGoBackHistory(): boolean {
+    return this.tabsService.canGoBack(this.tabId);
+  }
+
+  get canGoForwardHistory(): boolean {
+    return this.tabsService.canGoForward(this.tabId);
+  }
+
+  get backHistoryTitle(): string {
+    const position = this.tabsService.getBackHistoryPosition(this.tabId);
+
+    return position
+      ? `Back to page ${position.page}`
+      : 'Back';
+  }
+
+  get forwardHistoryTitle(): string {
+    const position = this.tabsService.getForwardHistoryPosition(this.tabId);
+
+    return position
+      ? `Forward to page ${position.page}`
+      : 'Forward';
+  }
+
+  private updateCurrentHistoryPosition() {
+    const position = this.tabsService.getSavedReadingPosition(this.tabId);
+
+    if (!position) return;
+
+    this.tabsService.updateCurrentHistoryPosition(this.tabId, position);
+  }
+
+  private smoothScrollTo(container: HTMLElement, target: number, duration = 180): Promise<void> {
+    const start = container.scrollTop;
+    const distance = target - start;
+    const startedAt = performance.now();
+
+    return new Promise(resolve => {
+      const step = (now: number) => {
+        const elapsed = now - startedAt;
+        const progress = Math.min(elapsed / duration, 1);
+
+        const eased =
+          1 - Math.pow(1 - progress, 3);
+
+        container.scrollTop =
+          start + distance * eased;
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(step);
     });
   }
 
