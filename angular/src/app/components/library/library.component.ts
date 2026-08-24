@@ -7,7 +7,8 @@ import {
   ElementRef,
   HostListener,
   inject,
-  Signal
+  Signal,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
@@ -49,6 +50,7 @@ type DirectoryGroup = {
     LibraryToolbarComponent,
   ],
   templateUrl: './library.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './library.component.scss'
 })
 export class LibraryComponent implements OnInit, OnDestroy {

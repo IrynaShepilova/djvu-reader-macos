@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { BookService } from './services/book.service';
 import { Observable } from 'rxjs';
@@ -10,6 +10,7 @@ import { Book } from './interfaces/book';
   imports: [  RouterOutlet ],
   standalone: true,
   templateUrl: './app.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.scss',
 
 })

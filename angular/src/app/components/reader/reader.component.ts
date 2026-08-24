@@ -1,6 +1,7 @@
 import {
   AfterViewInit,
-  Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild
+  Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import {TabState} from '../../interfaces/tabState';
@@ -19,6 +20,7 @@ type FitMode = 'none' | 'width' | 'height';
     DecimalPipe
   ],
   templateUrl: './reader.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './reader.component.scss',
 })
 export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {

@@ -1,4 +1,4 @@
-import {Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild} from '@angular/core';
+import {Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild, ChangeDetectionStrategy} from '@angular/core';
 import {MatIcon} from '@angular/material/icon';
 
 export type LibraryViewMode = 'tile' | 'list';
@@ -16,6 +16,7 @@ export type SortOption = {
     MatIcon
   ],
   templateUrl: './library-toolbar.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './library-toolbar.component.scss',
 })
 export class LibraryToolbarComponent {

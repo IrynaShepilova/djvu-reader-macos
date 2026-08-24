@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { Router } from '@angular/router';
@@ -13,6 +13,7 @@ import { NavigationEnd } from '@angular/router';
   standalone: true,
   imports: [CommonModule, DragDropModule],
   templateUrl: './tabs-bar.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './tabs-bar.component.scss'
 })
 export class TabsBarComponent implements OnInit {

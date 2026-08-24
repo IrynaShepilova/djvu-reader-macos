@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { ReaderComponent } from '../reader/reader.component';
 import { TabsService } from '../../services/tabs.service';
@@ -12,6 +12,7 @@ import { environment } from '../../../environments/environment';
   standalone: true,
   imports: [ReaderComponent, TabsBarComponent],
   templateUrl: './reader-wrapper.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './reader-wrapper.component.scss',
 })
 

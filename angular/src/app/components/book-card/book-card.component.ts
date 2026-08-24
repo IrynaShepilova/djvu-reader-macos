@@ -1,4 +1,4 @@
-import {Component, EventEmitter, Input, Output} from '@angular/core';
+import {Component, EventEmitter, Input, Output, ChangeDetectionStrategy} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {Book} from '../../interfaces/book';
 import {MatIcon, MatIconModule} from '@angular/material/icon';
@@ -10,6 +10,7 @@ import {MatMenu, MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
   standalone: true,
   imports: [DatePipe, MatIcon, MatMenu, MatMenuTrigger],
   templateUrl: './book-card.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './book-card.component.scss',
 })
 export class BookCardComponent {

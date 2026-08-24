@@ -1,4 +1,4 @@
-import {Component, OnInit, Signal, signal} from '@angular/core';
+import {Component, OnInit, Signal, signal, ChangeDetectionStrategy} from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -15,6 +15,7 @@ import { ScanFoldersFacade } from '../../services/scan-folders-facade';
   standalone: true,
   imports: [FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatCheckboxModule],
   templateUrl: './scan-folders-dialog.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './scan-folders-dialog.component.scss',
 })
 export class ScanFoldersDialogComponent implements OnInit {
