@@ -17,6 +17,9 @@ const swaggerUi = require('swagger-ui-express');
 // modules
 const { openapiSpec } = require('./docs/openapi');
 
+// database
+require('./database/database');
+
 // routes import
 const scanFoldersRoutes = require('./routes/scan-folders');
 const healthRoutes = require('./routes/health');

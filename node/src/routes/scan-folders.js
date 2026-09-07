@@ -6,7 +6,7 @@ const {
     removeScanFolder,
     updateScanFolder,
     updateScanFolderStatus,
-} = require('../services/settings-store');
+} = require('../services/scan-folders-store');
 
 const { checkFolderAvailability } = require('../services/scanner');
 

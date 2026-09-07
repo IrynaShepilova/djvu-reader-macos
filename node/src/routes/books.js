@@ -4,18 +4,20 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const { readLibrary, writeLibrary } = require('../services/library-store');
+const { getBooks, getBookById, updateBook, addBook, addBookByPath, addBooks, deleteBook, hideBook, getMissingBooks} = require('../services/library-store');
 const { getScanState, setScanState } = require('../services/scan-state');
 const { scanAll, scanAllAsync, createBookFromPath, isDjvuFile } = require('../services/scanner');
-const { getScanFolders } = require('../services/settings-store');
-const { coversDir } = require('../config/paths');
+const { getScanFolders } = require('../services/scan-folders-store');
+
+const db = require('../database/database');
+const { createBooksRepository } = require('../database/books-repository');
+const booksRepository = createBooksRepository(db);
+
+const { createCoversRepository } = require('../database/covers-repository');
+const coversRepository = createCoversRepository(db);
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-function coverKeyFromId(id) {
-    return crypto.createHash('sha1').update(id).digest('hex');
-}
 
 function getEnabledScanPaths() {
     return getScanFolders()
@@ -36,28 +38,19 @@ function isBookInEnabledFolder(book, enabledPaths) {
 }
 
 router.get('/api/books', (req, res) => {
-    const enabledPaths = getEnabledScanPaths();
-
-    const items = readLibrary()
-        .filter(book => !book.invalid)
-        .filter(book => isBookInEnabledFolder(book, enabledPaths));
-
-    const result = items.map((b) => ({
-        ...b,
-        url: `/api/books/file/${encodeURIComponent(b.id)}`
+    const result = getBooks().map(book => ({
+        ...book,
+        url: `/api/books/file/${encodeURIComponent(book.id)}`
     }));
 
     res.json(result);
 });
 
 router.get('/api/books/file/:id', (req, res) => {
-    const id = req.params.id;
+    const book = getBookById(req.params.id);
 
-    const items = readLibrary();
-    const book = items.find(b => b.id === id);
-
-    if (!book || !book.fullPath) {
-        return res.status(404).send('Book not found');
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
     }
 
     if (!fs.existsSync(book.fullPath)) {
@@ -67,23 +60,16 @@ router.get('/api/books/file/:id', (req, res) => {
     res.sendFile(book.fullPath);
 });
 
-router.post('/api/books/scan', (req, res) => {
-    const scanned = scanAll(getEnabledScanPaths());
-
-    const current = readLibrary();
-
-    const existing = new Set(current.map(b => (b.id || b.fullPath).toLowerCase()));
-    const newBooks = scanned.filter(b => !existing.has(b.id.toLowerCase()));
-
-    const merged = [...current, ...newBooks];
-    writeLibrary(merged);
-
-    res.json({
-        added: newBooks.length,
-        total: merged.length,
-        newBooks: newBooks.map((b, i) => ({ id: current.length + i + 1, ...b }))
-    });
-});
+// router.post('/api/books/scan', (req, res) => {
+//     const scanned = scanAll(getEnabledScanPaths());
+//
+//     const added = addBooks(scanned);
+//
+//     res.json({
+//         added,
+//         total: getBooks().length,
+//     });
+// });
 
 router.get('/api/books/scan/status', (req, res) => {
     res.json(getScanState());
@@ -112,15 +98,13 @@ router.post('/api/books/scan/start', async (req, res) => {
 router.post('/api/books/:id/invalid', (req, res) => {
     const id = req.params.id;
 
-    const items = readLibrary();
-    const book = items.find(b => (b.id || b.fullPath) === id);
+    const book = updateBook(id, {
+        invalid: true,
+    });
 
     if (!book) {
         return res.status(404).json({ error: 'Book not found' });
     }
-
-    book.invalid = true;
-    writeLibrary(items);
 
     res.json({
         ok: true,
@@ -150,49 +134,25 @@ async function runScan() {
             },
         });
 
-        const current = readLibrary();
-
-        const key = (b) => (b.id || b.fullPath).toLowerCase();
-        const existing = new Set(current.map(key));
-
-        scanState.total = scanned.length;
-        scanState.message = 'Scanning files…';
-
-        const newBooks = [];
-
-        for (let i = 0; i < scanned.length; i++) {
-            const b = scanned[i];
-            scanState.processed = i + 1;
-
-            if (!existing.has(key(b))) {
-                existing.add(key(b));
-                newBooks.push(b);
-            }
-
-            scanState.percent = scanState.total
-                ? Math.round((scanState.processed / scanState.total) * 100)
-                : 100;
-
-            if (i % 50 === 0) {
-                await new Promise(r => setImmediate(r));
-            }
-        }
-
-        const merged = [...current, ...newBooks];
-        writeLibrary(merged);
+        const added = addBooks(scanned);
 
         const state = getScanState();
 
         setScanState({
             ...state,
-            added: newBooks.length,
+            added,
             percent: 100,
             processed: scanned.length,
             total: scanned.length,
-            message: `Done. Added ${newBooks.length}`,
+            message: `Done. Added ${added}`,
         });
     } catch (e) {
-        scanState.message = `Error: ${e?.message || e}`;
+        const state = getScanState();
+
+        setScanState({
+            ...state,
+            message: `Error: ${e?.message || e}`,
+        });
     } finally {
         const state = getScanState();
 
@@ -204,34 +164,58 @@ async function runScan() {
     }
 }
 
-router.post('/api/books/:id/cover', upload.single('cover'), (req, res) => {
-    const id = req.params.id;
-    const items = readLibrary();
-    const book = items.find(b => (b.id || b.fullPath) === id);
+router.get('/api/books/:id/cover', (req, res) => {
+    const cover = coversRepository.getByBookId(req.params.id);
 
-    if (!book) return res.status(404).json({ error: 'Book not found' });
-    if (!req.file?.buffer) return res.status(400).json({ error: 'No cover file' });
+    if (!cover) {
+        return res.status(404).end();
+    }
 
-    const coverKey = coverKeyFromId(id);
-    const coverPath = path.join(coversDir, `${coverKey}.jpg`);
-
-    fs.writeFileSync(coverPath, req.file.buffer);
-
-    const coverUrl = `/api/covers/${coverKey}.jpg`;
-    book.cover = coverUrl;
-    writeLibrary(items);
-
-    res.json({ ok: true, coverUrl });
+    res.setHeader('Content-Type', cover.mime_type);
+    res.send(cover.data);
 });
 
-router.get('/api/covers/:file', (req, res) => {
-    const file = req.params.file;
-    const full = path.join(coversDir, file);
+router.post('/api/books/:id/cover', upload.single('cover'), (req, res) => {
+    const id = req.params.id;
+    const book = getBookById(id);
 
-    if (!fs.existsSync(full)) return res.status(404).end();
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
+    }
 
-    res.setHeader('Content-Type', 'image/jpeg');
-    fs.createReadStream(full).pipe(res);
+    if (!req.file?.buffer) {
+        return res.status(400).json({ error: 'No cover file' });
+    }
+
+    coversRepository.set(
+        id,
+        req.file.mimetype,
+        req.file.buffer
+    );
+
+    const coverUrl = `/api/books/${encodeURIComponent(id)}/cover`;
+
+    res.json({
+        ok: true,
+        coverUrl,
+    });
+});
+
+router.delete('/api/books/:id/cover', (req, res) => {
+    const id = req.params.id;
+    const book = getBookById(id);
+
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
+    }
+
+    coversRepository.remove(id);
+
+    res.json({
+        ok: true,
+        id,
+        cover: '',
+    });
 });
 
 router.patch('/api/books/:id/meta', (req, res) => {
@@ -249,14 +233,11 @@ router.patch('/api/books/:id/meta', (req, res) => {
         return res.status(400).json({ error: 'Nothing to update' });
     }
 
-    const items = readLibrary();
-    const book = items.find(b => b.id === id);
+    const book = updateBook(id, patch);
 
-    if (!book) return res.status(404).json({ error: 'Book not found' });
-
-    Object.assign(book, patch);
-
-    writeLibrary(items);
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
+    }
 
     res.json({
         ok: true,
@@ -318,33 +299,6 @@ function normalizeBookMetaPatch(body = {}) {
     return patch;
 }
 
-router.delete('/api/books/:id/cover', (req, res) => {
-    const id = req.params.id;
-
-    const items = readLibrary();
-    const book = items.find(b => b.id === id);
-
-    if (!book) return res.status(404).json({ error: 'Book not found' });
-
-    if (book.cover) {
-        const fileName = path.basename(book.cover);
-        const coverPath = path.join(coversDir, fileName);
-
-        if (fs.existsSync(coverPath)) {
-            fs.unlinkSync(coverPath);
-        }
-    }
-
-    book.cover = '';
-    writeLibrary(items);
-
-    res.json({
-        ok: true,
-        id,
-        cover: '',
-    });
-});
-
 router.post('/api/books/add-by-path', (req, res) => {
     const { path: filePath } = req.body || {};
 
@@ -366,35 +320,45 @@ router.post('/api/books/add-by-path', (req, res) => {
         });
     }
 
-    const books = readLibrary();
-
-    const existing = books.find(book => book.fullPath === filePath);
-
-    if (existing) {
-        return res.json(withBookUrl(existing))
-    }
-
     const book = createBookFromPath(filePath);
+    const savedBook = addBookByPath(book);
 
-    books.push(withBookUrl(book))
-    writeLibrary(books);
-
-    res.json(book);
+    res.json(savedBook);
 });
 
-function withBookUrl(book) {
-    return {
-        ...book,
-        url: `/api/books/file/${encodeURIComponent(book.id)}`,
-    };
-}
+router.delete('/api/books/:id', (req, res) => {
+    const book = deleteBook(req.params.id);
 
-function markBookInvalid(id) {
-    const items = readLibrary();
-    const next = items.map(b =>
-        b.id === id ? { ...b, invalid: true } : b
-    );
-    writeLibrary(next);
-}
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
+    }
+
+    res.json({
+        ok: true,
+        id: book.id,
+    });
+});
+
+router.post('/api/books/:id/hide', (req, res) => {
+    const book = hideBook(req.params.id);
+
+    if (!book) {
+        return res.status(404).json({ error: 'Book not found' });
+    }
+
+    res.json({
+        ok: true,
+        book,
+    });
+});
+
+router.get('/api/books/missing', (req, res) => {
+    const books = getMissingBooks();
+
+    res.json({
+        count: books.length,
+        books,
+    });
+});
 
 module.exports = router;

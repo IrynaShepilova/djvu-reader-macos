@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const {getScanFolders} = require("./settings-store");
+// const {getScanFolders} = require("./scan-folders-store");
 
 const MAX_SCAN_DEPTH = 3;
 

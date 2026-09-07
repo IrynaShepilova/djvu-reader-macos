@@ -69,7 +69,8 @@ export class BookService {
 
   async buildPreview(b: Book, uploadCover = true): Promise<string> {
     const fileUrl = `${this.apiBase}${b.url}`;
-    const buf = await fetch(fileUrl).then(r => r.arrayBuffer());    const doc = new (DjVu as any).Document(buf);
+    const buf = await fetch(fileUrl).then(r => r.arrayBuffer());
+    const doc = new (DjVu as any).Document(buf);
     const page1 = await doc.getPage(1);
     const img = await page1.getImageData();
 
