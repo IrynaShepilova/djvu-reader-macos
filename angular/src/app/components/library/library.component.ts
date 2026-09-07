@@ -31,6 +31,7 @@ import { EditBookDialogComponent } from '../edit-book-dialog/edit-book-dialog.co
 import { firstValueFrom } from 'rxjs';
 import { forkJoin } from 'rxjs';
 import {MissingBooksDialogComponent} from '../missing-books-dialog/missing-books-dialog.component';
+import {NgTemplateOutlet} from '@angular/common';
 
 type LibraryViewMode = 'tile' | 'list';
 type SortMode = 'default' | 'lastOpened' |'byDirectory' | 'title' | 'category';
@@ -50,6 +51,7 @@ type DirectoryGroup = {
     BookCardComponent,
     MatIcon,
     LibraryToolbarComponent,
+    NgTemplateOutlet,
   ],
   templateUrl: './library.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,

@@ -68,18 +68,9 @@
 
               <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
                 @for (b of group.books; track b.url) {
-                  @if (!b.hidden || showHidden()) {
-                    <app-book-card
-                      [book]="b"
-                      [previewUrl]="previewMap()[b.id]"
-                      [attr.data-book-id]="b.id"
-                      (open)="openBook($event)"
-                      (favoriteToggle)="toggleFavorite($event)"
-                      (edit)="openEditBookDialog($event)"
-                      (hiddenToggle)="toggleBookHidden($event)"
-                      (remove)="removeBook($event)"
-                    />
-                  }
+                  <ng-container
+                    *ngTemplateOutlet="bookCard; context: { $implicit: b }"
+                  />
                 }
               </div>
             </div>
@@ -90,21 +81,27 @@
   } @else {
     <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
       @for (b of sortedBooks(); track b.url) {
-        @if (!b.hidden || showHidden()) {
-          <app-book-card
-            [book]="b"
-            [previewUrl]="previewMap()[b.id]"
-            [attr.data-book-id]="b.id"
-            (open)="openBook($event)"
-            (favoriteToggle)="toggleFavorite($event)"
-            (edit)="openEditBookDialog($event)"
-            (hiddenToggle)="toggleBookHidden($event)"
-            (remove)="removeBook($event)"
-          />
-        }
+        <ng-container
+          *ngTemplateOutlet="bookCard; context: { $implicit: b }"
+        />
       }
     </div>
   }
+
+  <ng-template #bookCard let-b>
+    @if (!b.hidden || showHidden()) {
+      <app-book-card
+        [book]="b"
+        [previewUrl]="previewMap()[b.id]"
+        [attr.data-book-id]="b.id"
+        (open)="openBook($event)"
+        (favoriteToggle)="toggleFavorite($event)"
+        (edit)="openEditBookDialog($event)"
+        (hiddenToggle)="toggleBookHidden($event)"
+        (remove)="removeBook($event)"
+      />
+    }
+  </ng-template>
 
   @if (showScrollTop()) {
     <button
