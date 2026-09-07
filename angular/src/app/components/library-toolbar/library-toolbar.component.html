@@ -75,11 +75,29 @@ view_list
       <mat-icon class="material-symbols-outlined">search</mat-icon>
     </button>
 
+    <button
+      class="btn icon"
+      type="button"
+      [title]="showHidden ? 'Hide hidden books' : 'Show hidden books'"
+      (click)="toggleHidden.emit()"
+    >
+      <mat-icon class="material-symbols-outlined">
+        {{ showHidden ? 'visibility_off' : 'visibility' }}
+      </mat-icon>
+    </button>
 
     <button class="btn"
             (click)="refresh.emit()"
             [disabled]="isScanning">
       <mat-icon class="material-symbols-outlined">refresh</mat-icon> Refresh
+    </button>
+
+    <button class="btn"
+            type="button"
+            (click)="checkLibrary.emit()"
+            [disabled]="isScanning">
+      <mat-icon class="material-symbols-outlined">fact_check</mat-icon>
+      Check
     </button>
 
     <button class="btn primary" (click)="scan.emit()" [disabled]="isScanning">

@@ -11,6 +11,12 @@
 .sort-dropdown {
   position: relative;
   display: inline-block;
+  transition:
+    transform 0.08s ease;
+
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
 }
 
 .sort-trigger {
@@ -22,6 +28,7 @@
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
+  min-width: 120px;
   mat-icon {
     margin-left: 5px;
   }

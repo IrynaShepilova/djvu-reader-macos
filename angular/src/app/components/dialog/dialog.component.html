@@ -17,7 +17,13 @@
 </div>
 
 <div mat-dialog-actions align="end">
-  <button mat-button mat-dialog-close>
+  @if (data.cancelText) {
+    <button mat-button [mat-dialog-close]="false">
+      {{ data.cancelText }}
+    </button>
+  }
+
+  <button mat-button [mat-dialog-close]="true">
     {{ data.okText || 'OK' }}
   </button>
 </div>

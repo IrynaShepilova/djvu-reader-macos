@@ -6,6 +6,11 @@ import {environment} from '../../environments/environment';
 
 declare const DjVu: any;
 
+export interface MissingBooksResponse {
+  count: number;
+  books: Book[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -117,6 +122,25 @@ export class BookService {
     return this.http.post<Book>(
       `${this.apiUrl}/add-by-path`,
       { path: filePath },
+    );
+  }
+
+  hideBook(id: string) {
+    return this.http.post<{ ok: boolean; book: Book }>(
+      `${this.apiUrl}/${encodeURIComponent(id)}/hide`,
+      {}
+    );
+  }
+
+  deleteBook(id: string) {
+    return this.http.delete<{ ok: boolean; id: string }>(
+      `${this.apiUrl}/${encodeURIComponent(id)}`
+    );
+  }
+
+  getMissingBooks(): Observable<MissingBooksResponse> {
+    return this.http.get<MissingBooksResponse>(
+      `${this.apiUrl}/missing`
     );
   }
 }

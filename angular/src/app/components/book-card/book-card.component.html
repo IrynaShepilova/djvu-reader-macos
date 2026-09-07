@@ -66,6 +66,16 @@
                 <mat-icon class="material-symbols-outlined">edit</mat-icon>
                 <span>Edit book</span>
               </button>
+
+              <button mat-menu-item (click)="hiddenToggle.emit(book)">
+                <mat-icon class="material-symbols-outlined">visibility_off</mat-icon>
+                {{ book.hidden ? 'Show book' : 'Hide book' }}
+              </button>
+
+              <button mat-menu-item (click)="remove.emit(book)">
+                <mat-icon class="material-symbols-outlined">delete</mat-icon>
+                <span>Remove book</span>
+              </button>
             </mat-menu>
           </span>
         </div>

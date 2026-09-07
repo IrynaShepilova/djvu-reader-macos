@@ -20,4 +20,6 @@ export class BookCardComponent {
   @Output() open = new EventEmitter<Book>();
   @Output() favoriteToggle = new EventEmitter<Book>();
   @Output() edit = new EventEmitter<Book>();
+  @Output() hiddenToggle = new EventEmitter<Book>();
+  @Output() remove = new EventEmitter<Book>();
 }

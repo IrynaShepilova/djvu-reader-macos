@@ -28,7 +28,9 @@ import { BookCardComponent } from '../book-card/book-card.component';
 import { MatIcon } from '@angular/material/icon';
 import {LibraryToolbarComponent} from '../library-toolbar/library-toolbar.component';
 import { EditBookDialogComponent } from '../edit-book-dialog/edit-book-dialog.component';
-import {firstValueFrom} from 'rxjs';
+import { firstValueFrom } from 'rxjs';
+import { forkJoin } from 'rxjs';
+import {MissingBooksDialogComponent} from '../missing-books-dialog/missing-books-dialog.component';
 
 type LibraryViewMode = 'tile' | 'list';
 type SortMode = 'default' | 'lastOpened' |'byDirectory' | 'title' | 'category';
@@ -71,6 +73,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
   private readonly apiBase = environment.apiBase;
 
   books = signal<Book[]>([]);
+
+  showHidden = signal(false);
 
   isScanning = signal(false);
   scanProgress = signal(0);
@@ -303,6 +307,49 @@ export class LibraryComponent implements OnInit, OnDestroy {
     this.books.set(this.enrichBooks(list));
     await this.generatePreviews(list);
     this.restoreLibraryState();
+  }
+
+  async checkLibrary() {
+    const result = await this.bookService.getMissingBooks().toPromise();
+
+    if (!result) return;
+
+    if (!result.count) {
+      this.dialog.open(DialogComponent, {
+        width: '420px',
+        data: {
+          title: 'Library check',
+          message: 'All books are available.',
+        },
+      });
+
+      return;
+    }
+
+    const ref = this.dialog.open(MissingBooksDialogComponent, {
+      width: '600px',
+      data: {
+        books: result.books,
+      },
+    });
+
+    ref.afterClosed().subscribe(action => {
+      if (action === 'hide') {
+        forkJoin(
+          result.books.map(book => this.bookService.hideBook(book.id))
+        ).subscribe(() => {
+          void this.refreshLibrary();
+        });
+      }
+
+      if (action === 'remove') {
+        forkJoin(
+          result.books.map(book => this.bookService.deleteBook(book.id))
+        ).subscribe(() => {
+          void this.refreshLibrary();
+        });
+      }
+    });
   }
 
   setViewMode(mode: LibraryViewMode) {
@@ -751,6 +798,44 @@ export class LibraryComponent implements OnInit, OnDestroy {
     }
 
     this.openBook(book);
+  }
+
+  toggleBookHidden(book: Book) {
+    this.bookService.updateBookMeta(book.id, {
+      hidden: !book.hidden,
+    }).subscribe({
+      next: () => {
+        void this.refreshLibrary();
+      },
+      error: (e) => {
+        console.error('Failed to update book visibility', e);
+      },
+    });
+  }
+
+  removeBook(book: Book) {
+    const ref = this.dialog.open(DialogComponent, {
+      width: '420px',
+      data: {
+        title: 'Remove book',
+        message: `Remove "${book.title}" from the library?`,
+        okText: 'Remove',
+        cancelText: 'Cancel',
+      },
+    });
+
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bookService.deleteBook(book.id).subscribe({
+        next: () => {
+          void this.refreshLibrary();
+        },
+        error: (e) => {
+          console.error('Failed to remove book', e);
+        },
+      });
+    });
   }
 
   ngOnDestroy() {

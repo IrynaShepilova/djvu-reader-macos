@@ -8,6 +8,7 @@ export type DialogData = {
   message?: string;
   items?: string[];
   okText?: string;
+  cancelText?: string;
 };
 
 @Component({

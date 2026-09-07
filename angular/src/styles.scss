@@ -48,6 +48,14 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition:
+    transform 0.08s ease,
+    filter 0.08s ease;
+
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+    filter: brightness(0.92);
+  }
 }
 
 .btn:hover { background: #f3f3f3; }

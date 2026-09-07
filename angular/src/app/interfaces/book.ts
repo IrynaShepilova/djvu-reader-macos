@@ -12,4 +12,5 @@ export interface Book {
   lastOpenedAt?: string | null;
   category?: string | null;
   favorite?: boolean;
+  hidden?: boolean;
 }

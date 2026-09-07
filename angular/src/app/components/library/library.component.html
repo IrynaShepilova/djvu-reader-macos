@@ -13,6 +13,9 @@
     (sortModeChange)="setSortMode($event)"
     (toggleViewMode)="toggleViewMode()"
     (refresh)="refreshLibrary()"
+    [showHidden]="showHidden()"
+    (toggleHidden)="showHidden.update(value => !value)"
+    (checkLibrary)="checkLibrary()"
     (scan)="scanLibrary()"
     (openFolders)="openScanFoldersDialog()"
     [searchOpen]="searchOpen()"
@@ -65,14 +68,18 @@
 
               <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
                 @for (b of group.books; track b.url) {
-                  <app-book-card
-                    [book]="b"
-                    [previewUrl]="previewMap()[b.id]"
-                    [attr.data-book-id]="b.id"
-                    (open)="openBook($event)"
-                    (favoriteToggle)="toggleFavorite($event)"
-                    (edit)="openEditBookDialog($event)"
-                  />
+                  @if (!b.hidden || showHidden()) {
+                    <app-book-card
+                      [book]="b"
+                      [previewUrl]="previewMap()[b.id]"
+                      [attr.data-book-id]="b.id"
+                      (open)="openBook($event)"
+                      (favoriteToggle)="toggleFavorite($event)"
+                      (edit)="openEditBookDialog($event)"
+                      (hiddenToggle)="toggleBookHidden($event)"
+                      (remove)="removeBook($event)"
+                    />
+                  }
                 }
               </div>
             </div>
@@ -83,14 +90,18 @@
   } @else {
     <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
       @for (b of sortedBooks(); track b.url) {
-        <app-book-card
-          [book]="b"
-          [previewUrl]="previewMap()[b.id]"
-          [attr.data-book-id]="b.id"
-          (open)="openBook($event)"
-          (favoriteToggle)="toggleFavorite($event)"
-          (edit)="openEditBookDialog($event)"
-        />
+        @if (!b.hidden || showHidden()) {
+          <app-book-card
+            [book]="b"
+            [previewUrl]="previewMap()[b.id]"
+            [attr.data-book-id]="b.id"
+            (open)="openBook($event)"
+            (favoriteToggle)="toggleFavorite($event)"
+            (edit)="openEditBookDialog($event)"
+            (hiddenToggle)="toggleBookHidden($event)"
+            (remove)="removeBook($event)"
+          />
+        }
       }
     </div>
   }

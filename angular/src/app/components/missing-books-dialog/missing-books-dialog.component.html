@@ -1,0 +1,38 @@
+<h2 mat-dialog-title>Missing books</h2>
+
+<div mat-dialog-content>
+  <p>
+    Found {{ data.books.length }}
+    missing {{ data.books.length === 1 ? 'book' : 'books' }}:
+  </p>
+
+  <ul class="missing-books">
+    @for (book of data.books; track book.id) {
+      <li>
+        <div class="book-title">{{ book.title }}</div>
+
+        @if (book.fullPath) {
+          <div class="book-path">{{ book.fullPath }}</div>
+        }
+      </li>
+    }
+  </ul>
+
+  <p>
+    Would you like to remove them from the library or hide them?
+  </p>
+</div>
+
+<div mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>
+    Cancel
+  </button>
+
+  <button mat-button [mat-dialog-close]="'hide'">
+    Hide
+  </button>
+
+  <button mat-button [mat-dialog-close]="'remove'">
+    Remove
+  </button>
+</div>

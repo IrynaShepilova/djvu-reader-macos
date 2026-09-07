@@ -296,6 +296,14 @@ function normalizeBookMetaPatch(body = {}) {
         patch.favorite = body.favorite;
     }
 
+    if (body.hidden !== undefined) {
+        if (typeof body.hidden !== 'boolean') {
+            throw new Error('hidden must be a boolean');
+        }
+
+        patch.hidden = body.hidden;
+    }
+
     return patch;
 }
 

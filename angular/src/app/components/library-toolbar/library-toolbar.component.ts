@@ -44,14 +44,17 @@ export class LibraryToolbarComponent {
   @Input({ required: true }) sortMenuOpen = false;
   @Input() searchOpen = false;
   @Input() searchQuery = '';
+  @Input() showHidden = false;
 
   @Output() toggleSortMenu = new EventEmitter<void>();
   @Output() sortModeChange = new EventEmitter<SortMode>();
   @Output() toggleViewMode = new EventEmitter<void>();
   @Output() refresh = new EventEmitter<void>();
+  @Output() checkLibrary = new EventEmitter<void>();
   @Output() scan = new EventEmitter<void>();
   @Output() openFolders = new EventEmitter<void>();
   @Output() toggleSearch = new EventEmitter<void>();
   @Output() searchQueryChange = new EventEmitter<string>();
   @Output() clearSearch = new EventEmitter<void>();
+  @Output() toggleHidden = new EventEmitter<void>();
 }
