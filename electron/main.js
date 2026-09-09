@@ -200,7 +200,7 @@ function createAppMenu() {
                         if (!mainWindow) return;
 
                         const result = await dialog.showOpenDialog(mainWindow, {
-                            properties: ['openFile'],
+                            properties: ['openFile', 'multiSelections'],
                             filters: [
                                 {
                                     name: 'DjVu files',
@@ -214,8 +214,8 @@ function createAppMenu() {
                         }
 
                         mainWindow.webContents.send(
-                            'open-file',
-                            result.filePaths[0],
+                            'open-files',
+                            result.filePaths,
                         );
                     },
                 },

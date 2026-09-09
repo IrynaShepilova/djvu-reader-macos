@@ -117,6 +117,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
   showScrollTop = signal(false);
 
   private removeOpenFileListener?: () => void;
+  private removeOpenFilesListener?: () => void;
 
   @HostListener('window:scroll')
   onWindowScroll() {
@@ -127,6 +128,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
     this.removeOpenFileListener = window.electronAPI?.onOpenFile?.((filePath) => {
       void this.openBookFromFilePath(filePath);
+    });
+
+    this.removeOpenFilesListener = window.electronAPI?.onOpenFiles?.((filePaths) => {
+      void this.handleOpenFiles(filePaths);
     });
 
     window.electronAPI?.rendererReady?.();
@@ -802,15 +807,54 @@ export class LibraryComponent implements OnInit, OnDestroy {
     let book = this.books().find(b => b.fullPath === filePath);
 
     if (!book) {
-      book = await firstValueFrom(
+      await firstValueFrom(
         this.bookService.addBookByPath(filePath)
       );
       console.log('response', book);
 
       await this.refreshLibrary();
+
+      book = this.books().find(b => b.fullPath === filePath);
+      console.log('book',book );
     }
 
-    this.openBook(book);
+    if (book) {
+      this.openBook(book);
+    }
+  }
+
+  async handleOpenFiles(filePaths: string[]) {
+    if (filePaths.length === 1) {
+      await this.openBookFromFilePath(filePaths[0]);
+      return;
+    }
+
+    let added = 0;
+
+    for (const filePath of filePaths) {
+      const exists = this.books().some(b => b.fullPath === filePath);
+
+      if (!exists) {
+        await firstValueFrom(
+          this.bookService.addBookByPath(filePath)
+        );
+
+        added++;
+      }
+    }
+
+    await this.refreshLibrary();
+
+    this.dialog.open(DialogComponent, {
+      width: '420px',
+      data: {
+        title: 'Books added',
+        message:
+          added === 0
+            ? 'No books added: all selected books are already in the library.'
+            : `Added ${added} of ${filePaths.length} selected books.`,
+      },
+    });
   }
 
   toggleBookHidden(book: Book) {
@@ -852,7 +896,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    // this.removeOpenFileListener?.();
+    this.removeOpenFileListener?.();
+    this.removeOpenFilesListener?.();
   }
 
 }

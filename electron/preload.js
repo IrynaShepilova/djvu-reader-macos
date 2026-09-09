@@ -14,6 +14,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
             ipcRenderer.removeListener('open-file', listener);
         };
     },
+    onOpenFiles: (callback) => {
+        const listener = (_event, filePaths) => {
+            callback(filePaths);
+        };
+
+        ipcRenderer.on('open-files', listener);
+
+        return () => {
+            ipcRenderer.removeListener('open-files', listener);
+        };
+    },
 
     rendererReady: () => ipcRenderer.send('renderer-ready'),
 });
