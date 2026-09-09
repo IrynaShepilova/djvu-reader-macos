@@ -9,6 +9,7 @@ export interface Book {
   isNew?: boolean;
   totalPages?: number | null;
   progressPercent?: number | null;
+  createdAt?: string | null;
   lastOpenedAt?: string | null;
   category?: string | null;
   favorite?: boolean;

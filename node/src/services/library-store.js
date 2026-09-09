@@ -22,6 +22,7 @@ function toBook(row) {
         filename: row.filename,
         fullPath: row.full_path,
         totalPages: row.total_pages,
+        createdAt: row.created_at,
         lastOpenedAt: row.last_opened_at,
         category: row.category,
         favorite: Boolean(row.favorite),

@@ -8,6 +8,7 @@ import { MatIcon } from '@angular/material/icon';
 
 import { Book } from '../../interfaces/book';
 import { BookService } from '../../services/book.service';
+import {DatePipe} from '@angular/common';
 
 type EditBookDialogData = {
   book: Book;
@@ -23,8 +24,9 @@ type EditBookDialogData = {
     MatButtonModule,
     ReactiveFormsModule,
     MatCheckbox,
-    MatIcon
-],
+    MatIcon,
+    DatePipe
+  ],
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './edit-book-dialog.component.scss',
 })

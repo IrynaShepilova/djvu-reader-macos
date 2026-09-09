@@ -37,13 +37,15 @@
     </div>
 
     <div class="form-fields">
-      <label class="field"><span>Filename: </span></label>
-      <span>{{data.book.filename}}</span>
+      <span><strong>Filename: </strong>{{data.book.filename}}</span>
     </div>
 
     <div class="form-fields">
-      <label class="field"><span>Fullpath: </span></label>
-      <span>{{data.book.fullPath}}</span>
+      <span><strong>Fullpath: </strong>{{data.book.fullPath}}</span>
+    </div>
+
+    <div class="form-fields">
+      <span><strong >Added: </strong>{{data.book.createdAt | date: 'd MMM y, HH:mm' }}</span>
     </div>
   </div>
 </div>

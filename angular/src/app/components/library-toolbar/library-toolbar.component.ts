@@ -2,7 +2,7 @@ import {Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewCh
 import {MatIcon} from '@angular/material/icon';
 
 export type LibraryViewMode = 'tile' | 'list';
-export type SortMode = 'default' | 'lastOpened' | 'byDirectory' | 'title' | 'category';
+export type SortMode = 'default' | 'lastOpened' | 'dateAdded' | 'byDirectory' | 'title' | 'category';
 
 export type SortOption = {
   value: SortMode;

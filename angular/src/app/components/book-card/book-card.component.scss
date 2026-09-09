@@ -32,6 +32,7 @@
   }
 
   .preview-container {
+    padding-top: 2px;
     //border: 1px solid #aaa;
     //padding-left: 4pxs;
   }
@@ -125,7 +126,7 @@
   .mat-mdc-menu-content {
     display: flex;
     flex-direction: column;
-    padding: 0;
+    padding: 0 !important;
     button {
       background-color: transparent;
       border: none;
@@ -141,6 +142,9 @@
       align-items: center;
       gap: 8px;
       justify-content: flex-start;
+      &:hover {
+        background: #f5f5f5;
+      }
     }
   }
 

@@ -34,7 +34,7 @@ import {MissingBooksDialogComponent} from '../missing-books-dialog/missing-books
 import {NgTemplateOutlet} from '@angular/common';
 
 type LibraryViewMode = 'tile' | 'list';
-type SortMode = 'default' | 'lastOpened' |'byDirectory' | 'title' | 'category';
+type SortMode = 'default' | 'lastOpened' | 'dateAdded' | 'byDirectory' | 'title' | 'category';
 
 type DirectoryGroup = {
   title: string;
@@ -99,6 +99,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
   sortOptions = [
     { value: 'default' as SortMode, label: 'Default' },
     { value: 'lastOpened' as SortMode, label: 'Last opened' },
+    { value: 'dateAdded' as SortMode, label: 'Date Added' },
     { value: 'byDirectory' as SortMode, label: 'By directory' },
     { value: 'title' as SortMode, label: 'Title' },
     { value: 'category' as SortMode, label: 'Category' },
@@ -442,6 +443,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
         list.sort(this.compareByLastOpened);
         break;
 
+      case 'dateAdded':
+        list.sort(this.compareByDateAdded);
+        break;
+
       case 'title':
         list.sort(this.compareByTitle);
         break;
@@ -461,6 +466,12 @@ export class LibraryComponent implements OnInit, OnDestroy {
   private compareByLastOpened = (a: Book, b: Book): number => {
     const aTime = a.lastOpenedAt ? new Date(a.lastOpenedAt).getTime() : 0;
     const bTime = b.lastOpenedAt ? new Date(b.lastOpenedAt).getTime() : 0;
+    return bTime - aTime;
+  };
+
+  private compareByDateAdded = (a: Book, b: Book): number => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return bTime - aTime;
   };
 
