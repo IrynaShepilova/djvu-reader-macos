@@ -44,6 +44,15 @@
         "description": "DjVu document",
         "role": "Viewer",
         "icon": "resources/icon.icns"
+      },
+      {
+        "ext": [
+          "pdf"
+        ],
+        "name": "PDF Document",
+        "description": "PDF document",
+        "role": "Viewer",
+        "icon": "resources/icon.icns"
       }
     ],
     "asar": true,

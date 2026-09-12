@@ -6,13 +6,15 @@ import {ReadingPosition, TabState} from '../interfaces/tabState';
 import {environment} from '../../environments/environment';
 import { Router } from '@angular/router';
 import { ReadingHistory } from '../classes/reading-history';
-
-declare const DjVu: any;
+import { DocumentService } from './document.service';
 
 @Injectable({ providedIn: 'root' })
 export class TabsService {
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private documents: DocumentService,
+  ) {
     this.restoreTabs();
   }
 
@@ -73,6 +75,7 @@ export class TabsService {
     const st = this.tabStates.get(id);
     if (st) {
       this.revokeStateUrls(st);
+      void st.document?.destroy();
       st.document = undefined;
 
       st.allPages = [];
@@ -138,36 +141,20 @@ export class TabsService {
 
     if (forceReload) {
       this.revokeStateUrls(state);
+      const document = state.document;
+      state.document = undefined;
+      await document?.destroy();
       state.allPages = [];
       state.pages = [];
       state.thumbs = [];
-      state.document = undefined;
       state.totalPages = 0;
     }
 
     try {
       const fileUrl = `${environment.apiBase}${tab.book.url}`;
-      const response = await fetch(fileUrl);
-
-      if (!response.ok) {
-        const backendMessage = await response.text();
-
-        if (response.status === 404) {
-          throw new Error(
-            backendMessage || 'Book file is not available'
-          );
-        }
-
-        throw new Error(
-          backendMessage || `Failed to load book (${response.status})`
-        );
-      }
-
-      const buf = await response.arrayBuffer();
-
-      const doc = new DjVu.Document(buf);
+      const doc = await this.documents.load(tab.book, fileUrl);
       state.document = doc;
-      state.totalPages = this.getTotalPages(doc);
+      state.totalPages = doc.pageCount;
 
       await this.saveTotalPagesToBackend(tab.book.id, state.totalPages);
 
@@ -181,7 +168,7 @@ export class TabsService {
       void this.loadRemainingPagesInBackground(tabId, 10, loadVersion);
 
     } catch (err) {
-      console.error('DjVu load failed:', err);
+      console.error('Book load failed:', err);
       throw err;
     } finally {
       state.loading = false;
@@ -201,26 +188,11 @@ export class TabsService {
   }
 
 
-  private getTotalPages(doc: any): number {
-    const candidates = [
-      () => doc.getPagesCount?.(),
-      () => doc.getPagesQuantity?.(),
-      () => doc.pagesCount,
-      () => doc.pages?.length
-    ];
-    for (const fn of candidates) {
-      try {
-        const v = fn();
-        if (typeof v === 'number' && v > 0) return v;
-      } catch {}
-    }
-    return 1;
-  }
-
   async loadAllPages(tabId: string, batchSize = 10): Promise<void> {
     const state = this.tabStates.get(tabId);
     if (!state || !state.document) return;
 
+    const document = state.document;
     const total = state.totalPages;
     let i = 1;
 
@@ -230,15 +202,14 @@ export class TabsService {
 
         for (let p = i; p < i + batchSize && p <= total; p++) {
           try {
-            const page = await state.document.getPage(p);
-            const imgData = await page.getImageData();
-            const url = await this.imageDataToUrl(imgData);
+            const page = await document.renderPage(p);
+            const url = URL.createObjectURL(page.blob);
 
             batch.push({
               index: p,
               url,
-              width: imgData.width,
-              height: imgData.height
+              width: page.width,
+              height: page.height,
             });
 
           } catch (err) {
@@ -374,17 +345,22 @@ export class TabsService {
     const state = this.tabStates.get(tabId);
     if (!state || !state.document) return;
 
+    const document = state.document;
     const existingIndexes = new Set(state.allPages.map(p => p.index));
 
     for (const rawIndex of indexes) {
+      if (this.tabStates.get(tabId)?.document !== document) return;
+
       const p = Math.max(1, Math.min(rawIndex, state.totalPages));
 
       if (existingIndexes.has(p)) continue;
 
       try {
-        const page = await state.document.getPage(p);
-        const imgData = await page.getImageData();
-        const url = await this.imageDataToUrl(imgData);
+        const page = await document.renderPage(p);
+
+        if (this.tabStates.get(tabId)?.document !== document) return;
+
+        const url = URL.createObjectURL(page.blob);
 
         if (state.allPages.some(existing => existing.index === p)) {
           URL.revokeObjectURL(url);
@@ -394,8 +370,8 @@ export class TabsService {
         state.allPages.push({
           index: p,
           url,
-          width: imgData.width,
-          height: imgData.height
+          width: page.width,
+          height: page.height,
         });
 
         existingIndexes.add(p);
@@ -404,6 +380,7 @@ export class TabsService {
         state.loadingProgress = Math.round((state.allPages.length / state.totalPages) * 100);
         this.emitState(tabId);
       } catch (err) {
+        if (this.tabStates.get(tabId)?.document !== document) return;
         console.warn(`Error loading page ${p}:`, err);
       }
     }
@@ -454,20 +431,6 @@ export class TabsService {
     }
 
     await this.loadPagesByIndexes(tabId, indexes);
-  }
-
-  private async imageDataToUrl(imgData: ImageData): Promise<string> {
-    const canvas = document.createElement('canvas');
-    canvas.width = imgData.width;
-    canvas.height = imgData.height;
-    canvas.getContext('2d')!.putImageData(imgData, 0, 0);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/jpeg', 0.85)
-    );
-
-    if (!blob) throw new Error('Failed to convert ImageData to Blob');
-    return URL.createObjectURL(blob);
   }
 
   getState(tabId: string): TabState | null {
@@ -767,4 +730,3 @@ export class TabsService {
   }
 
 }
-

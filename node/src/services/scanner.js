@@ -29,7 +29,7 @@ function scanFolderRecursive(dir, depth = 0) {
 
         const fullPath = path.join(dir, entry.name);
 
-        if (entry.isFile() && isDjvuFile(entry.name)) {
+        if (entry.isFile() && isSupportedBookFile(entry.name)) {
             result.push(createBookFromPath(fullPath));
         }
 
@@ -121,7 +121,7 @@ async function scanFolderRecursiveAsync(dir, options = {}, depth = 0) {
         stats.scannedEntries++;
 
 
-        if (entry.isFile() && isDjvuFile(entry.name)) {
+        if (entry.isFile() && isSupportedBookFile(entry.name)) {
             stats.foundBooks++;
 
             result.push(createBookFromPath(fullPath));
@@ -164,8 +164,8 @@ async function scanAllAsync(scanDirs, options = {}) {
     return result;
 }
 
-function isDjvuFile(filePath) {
-    return /\.(djvu|djv)$/i.test(filePath);
+function isSupportedBookFile(filePath) {
+    return /\.(djvu|djv|pdf)$/i.test(filePath);
 }
 
 function createBookFromPath(fullPath) {
@@ -182,5 +182,5 @@ module.exports = {
     checkFolderAvailability,
     scanAllAsync,
     createBookFromPath,
-    isDjvuFile,
+    isSupportedBookFile,
 };

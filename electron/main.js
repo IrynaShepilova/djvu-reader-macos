@@ -203,8 +203,8 @@ function createAppMenu() {
                             properties: ['openFile', 'multiSelections'],
                             filters: [
                                 {
-                                    name: 'DjVu files',
-                                    extensions: ['djvu', 'djv'],
+                                    name: 'DjVu and PDF files',
+                                    extensions: ['djvu', 'djv', 'pdf'],
                                 },
                             ],
                         });

@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 const { getBooks, getBookById, updateBook, addBook, addBookByPath, addBooks, deleteBook, hideBook, getMissingBooks} = require('../services/library-store');
 const { getScanState, setScanState } = require('../services/scan-state');
-const { scanAll, scanAllAsync, createBookFromPath, isDjvuFile } = require('../services/scanner');
+const { scanAll, scanAllAsync, createBookFromPath, isSupportedBookFile } = require('../services/scanner');
 const { getScanFolders } = require('../services/scan-folders-store');
 
 const db = require('../database/database');
@@ -322,9 +322,9 @@ router.post('/api/books/add-by-path', (req, res) => {
         });
     }
 
-    if (!isDjvuFile(filePath)) {
+    if (!isSupportedBookFile(filePath)) {
         return res.status(400).json({
-            error: 'Not a DjVu file',
+            error: 'Unsupported book file type',
         });
     }
 

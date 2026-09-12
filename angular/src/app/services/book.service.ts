@@ -3,8 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Book } from '../interfaces/book';
 import {environment} from '../../environments/environment';
-
-declare const DjVu: any;
+import { DocumentService } from './document.service';
 
 export interface MissingBooksResponse {
   count: number;
@@ -18,7 +17,10 @@ export class BookService {
   private apiUrl = 'http://localhost:3000/api/books';
   private readonly apiBase = environment.apiBase;
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private documents: DocumentService,
+  ) {}
 
   getBooks(): Observable<Book[]> {
     return this.http.get<Book[]>(this.apiUrl);
@@ -74,34 +76,18 @@ export class BookService {
 
   async buildPreview(b: Book, uploadCover = true): Promise<string> {
     const fileUrl = `${this.apiBase}${b.url}`;
-    const buf = await fetch(fileUrl).then(r => r.arrayBuffer());
-    const doc = new (DjVu as any).Document(buf);
-    const page1 = await doc.getPage(1);
-    const img = await page1.getImageData();
+    const doc = await this.documents.load(b, fileUrl);
+    let blob: Blob;
 
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = img.width;
-    srcCanvas.height = img.height;
-    srcCanvas.getContext('2d')!.putImageData(img, 0, 0);
-
-    const targetW = 400;
-    const scale = targetW / img.width;
-    const targetH = Math.max(1, Math.round(img.height * scale));
-
-    const dstCanvas = document.createElement('canvas');
-    dstCanvas.width = targetW;
-    dstCanvas.height = targetH;
-
-    const ctx = dstCanvas.getContext('2d')!;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    ctx.drawImage(srcCanvas, 0, 0, targetW, targetH);
-
-    const blob = await new Promise<Blob | null>(res =>
-      dstCanvas.toBlob(res, 'image/jpeg', 0.55)
-    );
-    if (!blob) throw new Error('toBlob failed');
+    try {
+      blob = (await doc.renderPage(1, {
+        targetWidth: 400,
+        mimeType: 'image/jpeg',
+        quality: 0.55,
+      })).blob;
+    } finally {
+      await doc.destroy();
+    }
 
     try {
       if (uploadCover) {

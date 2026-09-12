@@ -1,3 +1,5 @@
+import { ReaderDocument } from './reader-document';
+
 export interface TabState {
   pages: { index: number; url: string }[];
   thumbs: { index: number; url: string }[];
@@ -6,7 +8,7 @@ export interface TabState {
   totalPages: number;
   loadingProgress: number;
   loadingDone: boolean;
-  document?: any;
+  document?: ReaderDocument;
   loading?: boolean;
   id?: string;
 }
