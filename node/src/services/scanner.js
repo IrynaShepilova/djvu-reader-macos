@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 // const {getScanFolders} = require("./scan-folders-store");
@@ -8,6 +9,26 @@ const MAX_SCAN_DEPTH = 3;
 
 function hashPath(fullPath) {
     return crypto.createHash('sha1').update(fullPath).digest('hex');
+}
+
+function isPathWithin(parentPath, childPath) {
+    const relativePath = path.relative(parentPath, childPath);
+
+    return relativePath !== ''
+        && relativePath !== '..'
+        && !relativePath.startsWith(`..${path.sep}`)
+        && !path.isAbsolute(relativePath);
+}
+
+function isPdfInDownloads(filePath) {
+    if (path.extname(filePath).toLowerCase() !== '.pdf') {
+        return false;
+    }
+
+    const downloadsPath = path.resolve(os.homedir(), 'Downloads');
+    const normalizedFilePath = path.resolve(filePath);
+
+    return isPathWithin(downloadsPath, normalizedFilePath);
 }
 
 function scanFolderRecursive(dir, depth = 0) {
@@ -29,7 +50,7 @@ function scanFolderRecursive(dir, depth = 0) {
 
         const fullPath = path.join(dir, entry.name);
 
-        if (entry.isFile() && isSupportedBookFile(entry.name)) {
+        if (entry.isFile() && isSupportedBookFile(entry.name) && !isPdfInDownloads(fullPath)) {
             result.push(createBookFromPath(fullPath));
         }
 
@@ -121,7 +142,7 @@ async function scanFolderRecursiveAsync(dir, options = {}, depth = 0) {
         stats.scannedEntries++;
 
 
-        if (entry.isFile() && isSupportedBookFile(entry.name)) {
+        if (entry.isFile() && isSupportedBookFile(entry.name) && !isPdfInDownloads(fullPath)) {
             stats.foundBooks++;
 
             result.push(createBookFromPath(fullPath));
@@ -183,4 +204,5 @@ module.exports = {
     scanAllAsync,
     createBookFromPath,
     isSupportedBookFile,
+    isPdfInDownloads,
 };
