@@ -88,6 +88,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
   private previewCache = new Map<string, string>(); // book.id -> objectUrl
   private previewInFlight = new Set<string>();
+  private previewFailures = this.restorePreviewFailures();
+  private readonly LS_PREVIEW_FAILURES = 'djvu.library.previewFailures.v1';
   previewMap = signal<Record<string, string>>({});
 
   private previewsRunId = 0;
@@ -182,6 +184,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
       !b.cover &&
       !this.previewCache.has(b.id) &&
       !this.previewInFlight.has(b.id) &&
+      !this.previewFailures.has(b.id) &&
+      !b.invalid &&
       !this.isNetworkBook(b)
     );
 
@@ -202,7 +206,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
           this.previewMap.update(m => ({ ...m, [b.id]: url }));
         } catch (e) {
           console.warn('Preview failed', b, e);
-          this.bookService.markInvalid(b.id).subscribe();
+          this.previewFailures.add(b.id);
+          this.persistPreviewFailures();
         } finally {
           this.previewInFlight.delete(b.id);
         }
@@ -316,6 +321,22 @@ export class LibraryComponent implements OnInit, OnDestroy {
     this.books.set(this.enrichBooks(list));
     await this.generatePreviews(list);
     this.restoreLibraryState();
+  }
+
+  private restorePreviewFailures(): Set<string> {
+    try {
+      const failures = JSON.parse(sessionStorage.getItem(this.LS_PREVIEW_FAILURES) ?? '[]');
+      return new Set(Array.isArray(failures) ? failures : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private persistPreviewFailures() {
+    sessionStorage.setItem(
+      this.LS_PREVIEW_FAILURES,
+      JSON.stringify([...this.previewFailures]),
+    );
   }
 
   async checkLibrary() {

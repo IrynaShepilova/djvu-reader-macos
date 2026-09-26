@@ -7,6 +7,7 @@ import { Observable } from 'rxjs';
 import { Tab } from '../../interfaces/tab';
 import { filter, map, startWith } from 'rxjs';
 import { NavigationEnd } from '@angular/router';
+import { getDocumentFormat, getDocumentFormatIcon } from '../../utils/document-format';
 
 @Component({
   selector: 'app-tabs-bar',
@@ -17,6 +18,9 @@ import { NavigationEnd } from '@angular/router';
   styleUrl: './tabs-bar.component.scss'
 })
 export class TabsBarComponent implements OnInit {
+
+  readonly getDocumentFormat = getDocumentFormat;
+  readonly getDocumentFormatIcon = getDocumentFormatIcon;
 
   tabs$!: Observable<Tab[]>;
   activeId$!: Observable<string | null>;

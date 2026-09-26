@@ -4,6 +4,7 @@ import {Book} from '../../interfaces/book';
 import {MatIcon, MatIconModule} from '@angular/material/icon';
 import {MatButtonModule} from '@angular/material/button';
 import {MatMenu, MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
+import { getDocumentFormat, getDocumentFormatIcon } from '../../utils/document-format';
 
 @Component({
   selector: 'app-book-card',
@@ -14,6 +15,8 @@ import {MatMenu, MatMenuModule, MatMenuTrigger} from '@angular/material/menu';
   styleUrl: './book-card.component.scss',
 })
 export class BookCardComponent {
+  readonly getDocumentFormat = getDocumentFormat;
+  readonly getDocumentFormatIcon = getDocumentFormatIcon;
   @Input({ required: true }) book!: Book;
   @Input() previewUrl?: string;
 

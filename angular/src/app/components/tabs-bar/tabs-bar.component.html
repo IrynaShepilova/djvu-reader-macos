@@ -27,11 +27,9 @@
       >
         <img
           class="format-icon"
-          [class.djvu-icon]="!tab.book.filename.toLowerCase().endsWith('.pdf')"
-          [src]="tab.book.filename.toLowerCase().endsWith('.pdf')
-            ? 'assets/images/pdf.svg'
-            : 'assets/images/djvu.svg'"
-                  alt=""
+          [class.djvu-icon]="getDocumentFormat(tab.book.filename) === 'djvu'"
+          [src]="getDocumentFormatIcon(tab.book.filename)"
+          alt=""
         />
 
         <span class="title">{{ tab.title }}</span>

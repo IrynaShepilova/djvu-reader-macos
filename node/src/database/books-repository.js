@@ -53,8 +53,7 @@ function createBooksRepository(db) {
             LEFT JOIN book_covers
                 ON book_covers.book_id = books.id
             WHERE
-                books.invalid = 0
-                AND EXISTS (
+                EXISTS (
                     SELECT 1
                     FROM scan_folders
                     WHERE scan_folders.enabled = 1

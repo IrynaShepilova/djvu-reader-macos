@@ -14,4 +14,5 @@ export interface Book {
   category?: string | null;
   favorite?: boolean;
   hidden?: boolean;
+  invalid?: boolean;
 }

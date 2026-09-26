@@ -33,8 +33,34 @@
 
   .preview-container {
     padding-top: 2px;
+    text-align: center;
     //border: 1px solid #aaa;
     //padding-left: 4pxs;
+  }
+
+  .preview-frame {
+    position: relative;
+    display: inline-block;
+  }
+
+  .format-icon {
+    position: absolute;
+    top: 10px;
+    left: 6px;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    z-index: 1;
+    background: #fff;
+    padding: 4px 2px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+
+    &.djvu-icon {
+      width: 28px;
+      height: 28px;
+      padding: 2px 0;
+    }
   }
 
   .info {
@@ -164,12 +190,10 @@
     right: 10px;
     top: 10px;
     background: #fff;
-    //background: pink;
-    //color: #fff;
     padding: 6px;
     border-radius: 20px;
     border: 1px solid #ccc;
-    //font-size: 12px;
+    z-index: 1;
   }
 
 }

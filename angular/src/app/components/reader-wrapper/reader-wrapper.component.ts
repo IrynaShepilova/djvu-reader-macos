@@ -7,6 +7,7 @@ import {ReadingPosition, TabState} from '../../interfaces/tabState';
 import {Tab} from '../../interfaces/tab';
 import { environment } from '../../../environments/environment';
 import { BookLoadError } from '../../classes/book-load-error';
+import { DocumentReadError } from '../../classes/document-read-error';
 
 @Component({
   selector: 'app-reader-wrapper',
@@ -110,6 +111,10 @@ export class ReaderWrapperComponent implements OnInit {
   get loadErrorMessage(): string {
     if (this.loadError instanceof BookLoadError && this.loadError.code === 'NETWORK_VOLUME_UNAVAILABLE') {
       return `The network volume is unavailable: ${this.loadError.volumePath ?? this.errorBookInfo?.book.fullPath ?? 'Unknown volume'}. Reconnect it, then try again.`;
+    }
+
+    if (this.loadError instanceof DocumentReadError) {
+      return this.loadError.message;
     }
 
     return this.loadError?.message ?? '';

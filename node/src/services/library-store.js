@@ -27,6 +27,7 @@ function toBook(row) {
         category: row.category,
         favorite: Boolean(row.favorite),
         hidden: Boolean(row.hidden),
+        invalid: Boolean(row.invalid),
         cover: row.has_cover
             ? `/api/books/${encodeURIComponent(row.id)}/cover`
             : undefined,

@@ -667,6 +667,10 @@ const options = {
                             nullable: true,
                             example: '/api/covers/abc123.jpg',
                         },
+                        invalid: {
+                            type: 'boolean',
+                            example: false,
+                        },
                         url: {
                             type: 'string',
                             example: '/api/books/file/%2FUsers%2Firyna%2FBooks%2Fexample.djvu',

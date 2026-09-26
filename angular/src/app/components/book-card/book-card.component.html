@@ -4,13 +4,23 @@
       favorite
     </mat-icon>
   }
-  <div class="preview-container">
+  <div class="type-icon">
     <img
-      class="preview"
-      [src]="previewUrl"
-      loading="lazy"
-      alt="preview"
+      class="format-icon"
+      [class.djvu-icon]="getDocumentFormat(book.filename) === 'djvu'"
+      [src]="getDocumentFormatIcon(book.filename)"
+      alt=""
     />
+  </div>
+  <div class="preview-container">
+    <div class="preview-frame">
+      <img
+        class="preview"
+        [src]="previewUrl"
+        loading="lazy"
+        alt="preview"
+      />
+    </div>
   </div>
 
   <div class="info">
