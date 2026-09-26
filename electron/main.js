@@ -1,10 +1,15 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 app.setName('Djvu Reader');
 
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const { getConfig } = require('./config');
+const { getBookFileAccess } = require(
+    app.isPackaged
+        ? path.join(process.resourcesPath, 'node', 'src', 'services', 'book-file-access')
+        : path.join(__dirname, '..', 'node', 'src', 'services', 'book-file-access')
+);
 
 let backendProc = null;
 let mainWindow = null;
@@ -311,4 +316,33 @@ ipcMain.handle('dialog:select-folder', async () => {
     }
 
     return result.filePaths[0];
+});
+
+ipcMain.handle('shell:show-item-in-folder', (_event, filePath) => {
+    if (typeof filePath !== 'string' || !filePath) {
+        return { ok: false, code: 'FILE_NOT_FOUND' };
+    }
+
+    const fileAccess = getBookFileAccess(filePath);
+
+    if (!fileAccess.available) {
+        return {
+            ok: false,
+            code: fileAccess.code,
+            volumePath: fileAccess.volumePath,
+        };
+    }
+
+    try {
+        shell.showItemInFolder(filePath);
+        return { ok: true };
+    } catch {
+        const currentFileAccess = getBookFileAccess(filePath);
+
+        return {
+            ok: false,
+            code: currentFileAccess.code || 'FILE_NOT_FOUND',
+            volumePath: currentFileAccess.volumePath,
+        };
+    }
 });

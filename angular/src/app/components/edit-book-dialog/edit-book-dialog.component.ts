@@ -37,6 +37,8 @@ export class EditBookDialogComponent implements OnInit {
   coverPreviewUrl: string | null = null;
   removeCoverRequested = false;
   loadingCoverPreview = false;
+  showInFinderError: string | null = null;
+  readonly isElectron = !!window.electronAPI?.showItemInFolder;
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: EditBookDialogData,
@@ -85,6 +87,21 @@ export class EditBookDialogComponent implements OnInit {
     this.coverPreviewUrl = URL.createObjectURL(file);
 
     input.value = '';
+  }
+
+  async showInFinder() {
+    const filePath = this.data.book.fullPath;
+
+    if (!filePath || !window.electronAPI?.showItemInFolder) return;
+
+    this.showInFinderError = null;
+    const result = await window.electronAPI.showItemInFolder(filePath);
+
+    if (result.ok) return;
+
+    this.showInFinderError = result.code === 'NETWORK_VOLUME_UNAVAILABLE'
+      ? `The network volume is unavailable: ${result.volumePath ?? filePath}. Reconnect it, then try again.`
+      : 'The book file is not available.';
   }
 
   save() {

@@ -42,6 +42,14 @@
 
     <div class="form-fields">
       <span><strong>Fullpath: </strong>{{data.book.fullPath}}</span>
+      @if (isElectron && data.book.fullPath) {
+        <button class="btn show-in-finder" type="button" (click)="showInFinder()">
+          Show in Finder
+        </button>
+      }
+      @if (showInFinderError) {
+        <span class="file-access-error">{{ showInFinderError }}</span>
+      }
     </div>
 
     <div class="form-fields">

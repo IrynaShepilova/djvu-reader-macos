@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
     selectFolder: () => ipcRenderer.invoke('dialog:select-folder'),
+    showItemInFolder: (filePath) => ipcRenderer.invoke('shell:show-item-in-folder', filePath),
 
     onOpenFile: (callback) => {
         const listener = (_event, filePath) => {

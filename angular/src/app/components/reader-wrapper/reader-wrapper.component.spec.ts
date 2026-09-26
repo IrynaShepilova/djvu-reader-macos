@@ -24,7 +24,7 @@ describe('ReaderWrapperComponent', () => {
     const component = new ReaderWrapperComponent(
       {} as ActivatedRoute,
       tabsService as unknown as TabsService,
-      cdr as ChangeDetectorRef,
+      cdr as unknown as ChangeDetectorRef,
     );
 
     component.tabId = 'tab-1';

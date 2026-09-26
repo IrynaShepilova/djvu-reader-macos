@@ -604,7 +604,13 @@ export class LibraryComponent implements OnInit, OnDestroy {
   }
 
   toggleSearch() {
-    this.searchOpen.update(v => !v);
+    if (this.searchOpen()) {
+      this.clearSearch();
+      this.searchOpen.set(false);
+      return;
+    }
+
+    this.searchOpen.set(true);
   }
 
   setSearchQuery(value: string) {
@@ -613,6 +619,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
   clearSearch() {
     this.searchQuery.set('');
+    sessionStorage.removeItem(this.LS_LIBRARY_SEARCH);
   }
 
   private normalizeForSearch(value: string): string {
@@ -643,9 +650,9 @@ export class LibraryComponent implements OnInit, OnDestroy {
   restoreSearchQuery(){
     const savedSearch = sessionStorage.getItem(this.LS_LIBRARY_SEARCH);
 
-    if (savedSearch !== null) {
+    if (savedSearch) {
       this.searchQuery.set(savedSearch);
-      this.searchOpen.set(!!savedSearch);
+      this.searchOpen.set(true);
     }
   }
 
@@ -678,7 +685,11 @@ export class LibraryComponent implements OnInit, OnDestroy {
   saveCurrentScrollPosition(book: Book) {
     sessionStorage.setItem('djvu.library.lastBookId', book.id);
     sessionStorage.setItem('djvu.library.scrollY', String(window.scrollY));
-    sessionStorage.setItem(this.LS_LIBRARY_SEARCH, this.searchQuery());
+    if (this.searchOpen() && this.searchQuery()) {
+      sessionStorage.setItem(this.LS_LIBRARY_SEARCH, this.searchQuery());
+    } else {
+      sessionStorage.removeItem(this.LS_LIBRARY_SEARCH);
+    }
   }
 
   scrollToTop() {

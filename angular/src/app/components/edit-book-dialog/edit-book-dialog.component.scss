@@ -109,3 +109,13 @@
   width: 100%;
   justify-content: center;
 }
+
+.btn.show-in-finder {
+  align-self: flex-start;
+}
+
+.file-access-error {
+  color: #b00020;
+  font-size: 14px;
+  line-height: 1.4;
+}
