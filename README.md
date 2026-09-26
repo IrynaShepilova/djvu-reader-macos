@@ -85,5 +85,10 @@ Books remain linked to their original files on disk. Missing files can be detect
 
 > Status: active development
 
-<img width="1330" height="783" alt="Screenshot 2026-02-22 at 02 14 23" src="https://github.com/user-attachments/assets/7661bfdf-3977-4f35-9a53-0574366188f4" />
-<img width="1348" height="783" alt="Screenshot 2026-02-22 at 02 15 29" src="https://github.com/user-attachments/assets/b18aaade-c76a-4d74-9d47-a7314271762b" />
+<img width="1330" height="771" alt="Screenshot 2026-09-27 at 00 50 50" src="https://github.com/user-attachments/assets/c5c3b888-45ff-4efc-9c19-2adde0cedb8b" />
+<img width="1348" height="778" alt="Screenshot 2026-09-27 at 00 52 48" src="https://github.com/user-attachments/assets/ee9840f2-153a-4e2e-906f-dfd6fc27b14d" />
+
+
+
+
+
