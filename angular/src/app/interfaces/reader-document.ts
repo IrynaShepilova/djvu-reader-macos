@@ -2,7 +2,7 @@ export type DocumentFormat = 'djvu' | 'pdf';
 
 export interface RenderOptions {
   targetWidth?: number;
-  mimeType?: 'image/jpeg';
+  mimeType?: 'image/jpeg' | 'image/png';
   quality?: number;
 }
 

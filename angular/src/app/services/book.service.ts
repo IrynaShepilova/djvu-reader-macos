@@ -82,7 +82,7 @@ export class BookService {
     try {
       blob = (await doc.renderPage(1, {
         targetWidth: 400,
-        mimeType: 'image/jpeg',
+        mimeType: 'image/png',
         quality: 0.55,
       })).blob;
     } finally {

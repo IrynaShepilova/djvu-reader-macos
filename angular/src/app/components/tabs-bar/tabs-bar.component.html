@@ -25,6 +25,15 @@
         (click)="onActivate(tab.id)"
         [title]="tab.title"
       >
+        <img
+          class="format-icon"
+          [class.djvu-icon]="!tab.book.filename.toLowerCase().endsWith('.pdf')"
+          [src]="tab.book.filename.toLowerCase().endsWith('.pdf')
+            ? 'assets/images/pdf.svg'
+            : 'assets/images/djvu.svg'"
+                  alt=""
+        />
+
         <span class="title">{{ tab.title }}</span>
 
         <button

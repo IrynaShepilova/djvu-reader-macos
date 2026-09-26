@@ -22,7 +22,7 @@ class PdfReaderDocument implements ReaderDocument {
 
   async renderPage(pageNumber: number, options: RenderOptions = {}): Promise<RenderedPage> {
     const page = await this.document.getPage(pageNumber);
-    const defaultRenderScale = 2;
+    const defaultRenderScale = 4;
     const baseViewport = page.getViewport({ scale: defaultRenderScale });
     const targetWidth = options.targetWidth ?? Math.round(baseViewport.width);
     const scale = targetWidth / baseViewport.width;
@@ -36,7 +36,7 @@ class PdfReaderDocument implements ReaderDocument {
     await page.render({ canvas, canvasContext: context, viewport }).promise;
 
     const blob = await new Promise<Blob | null>(resolve =>
-      canvas.toBlob(resolve, options.mimeType ?? 'image/jpeg', options.quality ?? 0.85),
+      canvas.toBlob(resolve, options.mimeType ?? 'image/png', options.quality ?? 1),
     );
 
     if (!blob) throw new Error('Failed to render page image');
