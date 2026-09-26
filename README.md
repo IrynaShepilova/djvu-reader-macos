@@ -20,6 +20,8 @@ A lightweight DJVU reader built with Angular, Node.js, and Electron.
 - 💾 Persistent local library stored in SQLite
 - 📖 Single-page and two-page reading modes
 - 🔎 Library search
+- 📄 PDF support
+- 🧩 Unified document abstraction for DJVU and PDF
 
 ## Tech stack
 
@@ -68,8 +70,8 @@ Books remain linked to their original files on disk. Missing files can be detect
 
 ## Roadmap
 
-- 📄 PDF support
-- 🧩 Unified document abstraction for DJVU and PDF
+- 🔖Bookmarks
+- 📝Notes
 - 🚀 More efficient rendering for large documents
 - 🏷️ Extended tags and categories
 - 🌍 Internationalization
