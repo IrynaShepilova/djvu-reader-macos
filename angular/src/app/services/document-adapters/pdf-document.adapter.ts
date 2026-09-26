@@ -1,5 +1,6 @@
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { DocumentAdapter, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
+import { bookLoadErrorFromResponse } from '../../classes/book-load-error';
 
 GlobalWorkerOptions.workerSrc = new URL('assets/pdf.worker.min.mjs', document.baseURI).toString();
 
@@ -7,6 +8,12 @@ export class PdfDocumentAdapter implements DocumentAdapter {
   readonly format = 'pdf' as const;
 
   async load(fileUrl: string): Promise<ReaderDocument> {
+    const response = await fetch(fileUrl, { headers: { Range: 'bytes=0-0' } });
+
+    if (!response.ok) {
+      throw await bookLoadErrorFromResponse(response);
+    }
+
     const loadingTask = getDocument(fileUrl);
     const document = await loadingTask.promise;
     return new PdfReaderDocument(document);

@@ -1,4 +1,5 @@
 import { DocumentAdapter, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
+import { bookLoadErrorFromResponse } from '../../classes/book-load-error';
 
 declare const DjVu: any;
 
@@ -9,8 +10,7 @@ export class DjvuDocumentAdapter implements DocumentAdapter {
     const response = await fetch(fileUrl);
 
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || `Failed to load book (${response.status})`);
+      throw await bookLoadErrorFromResponse(response);
     }
 
     const document = new DjVu.Document(await response.arrayBuffer());

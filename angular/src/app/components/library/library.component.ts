@@ -181,7 +181,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
     const queue = list.filter(b =>
       !b.cover &&
       !this.previewCache.has(b.id) &&
-      !this.previewInFlight.has(b.id)
+      !this.previewInFlight.has(b.id) &&
+      !this.isNetworkBook(b)
     );
 
     let idx = 0;
@@ -546,6 +547,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
   protected isNetworkFolder(folder: ScanFolder): boolean {
     return folder.path.startsWith('/Volumes/');
+  }
+
+  private isNetworkBook(book: Book): boolean {
+    return Boolean(book.fullPath?.startsWith('/Volumes/'));
   }
 
   toggleSortMenu() {

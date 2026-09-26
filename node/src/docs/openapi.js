@@ -324,6 +324,21 @@ const options = {
                         404: {
                             description: 'Book or file not found',
                         },
+                        503: {
+                            description: 'Network volume unavailable',
+                            content: {
+                                'application/json': {
+                                    schema: {
+                                        type: 'object',
+                                        properties: {
+                                            code: { type: 'string', example: 'NETWORK_VOLUME_UNAVAILABLE' },
+                                            error: { type: 'string' },
+                                            volumePath: { type: 'string', example: '/Volumes/Library-NAS' },
+                                        },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },

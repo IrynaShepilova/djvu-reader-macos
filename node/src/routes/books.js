@@ -8,6 +8,7 @@ const { getBooks, getBookById, updateBook, addBook, addBookByPath, addBooks, del
 const { getScanState, setScanState } = require('../services/scan-state');
 const { scanAll, scanAllAsync, createBookFromPath, isSupportedBookFile } = require('../services/scanner');
 const { getScanFolders } = require('../services/scan-folders-store');
+const { getBookFileAccess } = require('../services/book-file-access');
 
 const db = require('../database/database');
 const { createBooksRepository } = require('../database/books-repository');
@@ -53,8 +54,21 @@ router.get('/api/books/file/:id', (req, res) => {
         return res.status(404).json({ error: 'Book not found' });
     }
 
-    if (!fs.existsSync(book.fullPath)) {
-        return res.status(404).send('The book file is not available.');
+    const fileAccess = getBookFileAccess(book.fullPath);
+
+    if (fileAccess.code === 'NETWORK_VOLUME_UNAVAILABLE') {
+        return res.status(503).json({
+            code: fileAccess.code,
+            error: 'The network volume is unavailable.',
+            volumePath: fileAccess.volumePath,
+        });
+    }
+
+    if (!fileAccess.available) {
+        return res.status(404).json({
+            code: fileAccess.code,
+            error: 'The book file is not available.'
+        });
     }
 
     res.sendFile(book.fullPath);
