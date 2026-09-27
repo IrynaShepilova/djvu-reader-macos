@@ -1,95 +1,175 @@
-<div class="file-card" (click)="open.emit(book)">
-  @if (book.favorite) {
-    <mat-icon class="favorite-badge material-symbols">
-      favorite
-    </mat-icon>
-  }
-  <div class="type-icon">
-    <img
-      class="format-icon"
-      [class.djvu-icon]="getDocumentFormat(book.filename) === 'djvu'"
-      [src]="getDocumentFormatIcon(book.filename)"
-      alt=""
-    />
-  </div>
-  <div class="preview-container">
-    <div class="preview-frame">
+@if (viewMode === 'tile') {
+  <div class="file-card" (click)="open.emit(book)">
+    @if (book.favorite) {
+      <mat-icon class="favorite-badge material-symbols">
+        favorite
+      </mat-icon>
+    }
+    <div class="type-icon">
       <img
-        class="preview"
-        [src]="previewUrl"
-        loading="lazy"
-        alt="preview"
+        class="format-icon"
+        [class.djvu-icon]="getDocumentFormat(book.filename) === 'djvu'"
+        [src]="getDocumentFormatIcon(book.filename)"
+        alt=""
       />
     </div>
-  </div>
+    <div class="preview-container">
+      <div class="preview-frame">
+        <img
+          class="preview"
+          [src]="previewUrl"
+          loading="lazy"
+          alt="preview"
+        />
+      </div>
+    </div>
 
-  <div class="info">
-    <div class="title">{{ book.title || book.url }}</div>
-    @if (book.author) {
-      <div class="author">{{ book.author }}</div>
-    }
-    <div class="extras">
-      <div class="readProgress">
-        @if (book.lastOpenedAt) {
-          <div class="lastOpenedAt">
-            <span class="lastOpenedAtSpan">Last opened at: </span>
-            <span class="lastOpenedAtSpan">{{ book.lastOpenedAt | date: 'd MMM y, HH:mm'  }}</span>
+    <div class="info">
+      <div class="title">{{ book.title || book.url }}</div>
+      @if (book.author) {
+        <div class="author">{{ book.author }}</div>
+      }
+      <div class="extras">
+        <div class="readProgress">
+          @if (book.lastOpenedAt) {
+            <div class="lastOpenedAt">
+              <span class="lastOpenedAtSpan">Last opened at: </span>
+              <span class="lastOpenedAtSpan">{{ book.lastOpenedAt | date: 'd MMM y, HH:mm'  }}</span>
+            </div>
+
+          }
+          <div class="card-bottom-info">
+            @if (book.progressPercent) {
+              <span class="progressPercent">{{ book.progressPercent }}%</span>
+            } @else if (book.lastOpenedAt) {
+              <span class="progressPercent">0%</span>
+
+            }
+            @else {
+              <span class="new">New</span>
+            }
+            <span class="card-menu-holder">
+              <button
+                class="card-menu-btn"
+                type="button"
+                (click)="$event.stopPropagation()"
+                [matMenuTriggerFor]="bookMenu"
+                [matMenuTriggerRestoreFocus]="false"
+              >
+                <mat-icon class="material-symbols-outlined">more_vert</mat-icon>
+              </button>
+
+              <mat-menu #bookMenu="matMenu"
+                        xPosition="after"
+                        yPosition="below"
+                        panelClass="book-card-menu">
+                <button mat-menu-item (click)="favoriteToggle.emit(book)">
+                  <mat-icon
+                    [class.material-symbols]="book.favorite"
+                    [class.material-symbols-outlined]="!book.favorite"
+                  >
+                  favorite
+                </mat-icon>
+                  <span>{{ book.favorite ? 'Remove from favorites' : 'Add to favorites' }}</span>
+                </button>
+
+                <button mat-menu-item (click)="edit.emit(book)">
+                  <mat-icon class="material-symbols-outlined">edit</mat-icon>
+                  <span>Edit book</span>
+                </button>
+
+                <button mat-menu-item (click)="hiddenToggle.emit(book)">
+                  <mat-icon class="material-symbols-outlined">visibility_off</mat-icon>
+                  {{ book.hidden ? 'Show book' : 'Hide book' }}
+                </button>
+
+                <button mat-menu-item (click)="remove.emit(book)">
+                  <mat-icon class="material-symbols-outlined">delete</mat-icon>
+                  <span>Remove book</span>
+                </button>
+              </mat-menu>
+            </span>
           </div>
-
-        }
-        <div class="card-bottom-info">
-          @if (book.progressPercent) {
-            <span class="progressPercent">{{ book.progressPercent }}%</span>
-          } @else if (book.lastOpenedAt) {
-            <span class="progressPercent">0%</span>
-
-          }
-          @else {
-            <span class="new">New</span>
-          }
-          <span class="card-menu-holder">
-            <button
-              class="card-menu-btn"
-              type="button"
-              (click)="$event.stopPropagation()"
-              [matMenuTriggerFor]="bookMenu"
-              [matMenuTriggerRestoreFocus]="false"
-            >
-              <mat-icon class="material-symbols-outlined">more_vert</mat-icon>
-            </button>
-
-            <mat-menu #bookMenu="matMenu"
-                      xPosition="after"
-                      yPosition="below"
-                      panelClass="book-card-menu">
-              <button mat-menu-item (click)="favoriteToggle.emit(book)">
-                <mat-icon
-                  [class.material-symbols]="book.favorite"
-                  [class.material-symbols-outlined]="!book.favorite"
-                >
-                favorite
-              </mat-icon>
-                <span>{{ book.favorite ? 'Remove from favorites' : 'Add to favorites' }}</span>
-              </button>
-
-              <button mat-menu-item (click)="edit.emit(book)">
-                <mat-icon class="material-symbols-outlined">edit</mat-icon>
-                <span>Edit book</span>
-              </button>
-
-              <button mat-menu-item (click)="hiddenToggle.emit(book)">
-                <mat-icon class="material-symbols-outlined">visibility_off</mat-icon>
-                {{ book.hidden ? 'Show book' : 'Hide book' }}
-              </button>
-
-              <button mat-menu-item (click)="remove.emit(book)">
-                <mat-icon class="material-symbols-outlined">delete</mat-icon>
-                <span>Remove book</span>
-              </button>
-            </mat-menu>
-          </span>
         </div>
       </div>
     </div>
   </div>
-</div>
+}
+@else {
+  <div class="file-card list-view" (click)="open.emit(book)">
+    @if (book.favorite) {
+      <mat-icon class="favorite-badge material-symbols">favorite</mat-icon>
+    }
+    <div class="type-icon">
+      <img class="format-icon"
+        [class.djvu-icon]="getDocumentFormat(book.filename) === 'djvu'"
+        [src]="getDocumentFormatIcon(book.filename)"
+        alt=""
+      />
+    </div>
+    <div class="preview-container">
+      <div class="preview-frame">
+        <img class="preview"
+          [src]="previewUrl"
+          loading="lazy"
+          alt="Open the book"
+        />
+      </div>
+    </div>
+    <span class="card-menu-holder">
+        <button
+          class="card-menu-btn"
+          type="button"
+          (click)="$event.stopPropagation()"
+          [matMenuTriggerFor]="bookMenu"
+          [matMenuTriggerRestoreFocus]="false"
+        >
+          <mat-icon class="material-symbols-outlined">more_vert</mat-icon>
+        </button>
+
+        <mat-menu #bookMenu="matMenu"
+                  xPosition="after"
+                  yPosition="below"
+                  panelClass="book-card-menu">
+          <button mat-menu-item (click)="favoriteToggle.emit(book)">
+            <mat-icon
+              [class.material-symbols]="book.favorite"
+              [class.material-symbols-outlined]="!book.favorite"
+            >
+            favorite
+          </mat-icon>
+            <span>{{ book.favorite ? 'Remove from favorites' : 'Add to favorites' }}</span>
+          </button>
+
+          <button mat-menu-item (click)="edit.emit(book)">
+            <mat-icon class="material-symbols-outlined">edit</mat-icon>
+            <span>Edit book</span>
+          </button>
+
+          <button mat-menu-item (click)="hiddenToggle.emit(book)">
+            <mat-icon class="material-symbols-outlined">visibility_off</mat-icon>
+            {{ book.hidden ? 'Show book' : 'Hide book' }}
+          </button>
+
+          <button mat-menu-item (click)="remove.emit(book)">
+            <mat-icon class="material-symbols-outlined">delete</mat-icon>
+            <span>Remove book</span>
+          </button>
+        </mat-menu>
+      </span>
+
+    <div class="info">
+      <div class="title"><strong>Book title: </strong>{{ book.title || book.url }}</div>
+      <div class="author"><strong>Book author: </strong>{{ book.author }}</div>
+      <div class="title"><strong>Full path: </strong>{{ book.fullPath}}</div>
+      <div class="title"><strong>Pages: </strong>{{ book.totalPages}}</div>
+      <div class="title"><strong>Added: </strong>{{ book.createdAt | date: 'd MMM y, HH:mm'}}</div>
+      <div class="title"><strong>Last opened: </strong>{{ book.lastOpenedAt | date: 'd MMM y, HH:mm' }}</div>
+      <div class="title"><strong>Category: </strong>{{ book.category}}</div>
+      <div class="title"><strong>Reading progress: </strong>{{ book.progressPercent}}%</div>
+      <div class="title"><strong>Hidden: </strong>{{ book.hidden}}</div>
+      <div class="title"><strong>Invalid: </strong>{{ book.invalid}}</div>
+
+    </div>
+  </div>
+}

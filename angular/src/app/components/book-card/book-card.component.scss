@@ -122,21 +122,54 @@
         flex-basis: 100%;
         gap: 4px;
       }
+    }
+  }
 
-      .card-menu-btn {
-        width: 28px;
-        height: 28px;
-        padding: 0;
-        border: 0;
-        border-radius: 50%;
-        background: transparent;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
+  .card-menu-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &.list-view {
+    flex-direction: row;
+    min-height: unset;
+    height: fit-content;
+
+    .card-menu-holder {
+      //border: 1px solid rebeccapurple;
+      width: auto;
+      height: 40px;
+      position: absolute;
+      right: 5px;
+      top: 7px;
     }
 
+    .preview-container {
+      text-align: unset;
+      margin-left: 10px;
+      margin-top: 10px;
+    }
+    .info {
+      margin-top: 3px;
+      text-align: unset;
+    }
+    .title {
+      margin: 2px 0;
+      font-size: 13px;
+    }
+
+    .favorite-badge {
+      right: unset;
+      left: 42px;
+    }
   }
 }
 
