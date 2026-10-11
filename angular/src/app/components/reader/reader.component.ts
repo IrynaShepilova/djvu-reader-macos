@@ -52,10 +52,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
 
   onThumbClick(index: number) {
+    console.log('onThumbClick index', index);
     void this.goToPage(index);
   }
 
   scrollToPage(index: number, smooth = true) {
+    console.log('scrollToPage index ', index);
     const container = this.pagesRef?.nativeElement;
     if (!container) return;
 
@@ -100,6 +102,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     this.state.currentPage = p;
     this.saveCurrentPage();
+
+    void this.tabsService.ensureThumbnailLoaded(this.tabId, p);
 
     await this.tabsService.ensurePageWindowLoaded(
       this.tabId,

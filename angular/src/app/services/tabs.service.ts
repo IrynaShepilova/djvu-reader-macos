@@ -36,6 +36,7 @@ export class TabsService {
   private readonly LS_READING_POSITION_PREFIX = 'djvu.positionByBookUrl.v1:';
 
   private readonly loadVersions = new Map<string, number>();
+  private readonly thumbnailLoadingPages = new Map<string, Set<number>>();
 
   private tabHistories = new Map<string, ReadingHistory>();
 
@@ -81,6 +82,7 @@ export class TabsService {
       st.allPages = [];
       st.pages = [];
       st.thumbs = [];
+      this.thumbnailLoadingPages.delete(id);
     }
 
     const remaining = this.tabs.filter(t => t.id !== id);
@@ -147,6 +149,7 @@ export class TabsService {
       state.allPages = [];
       state.pages = [];
       state.thumbs = [];
+      this.thumbnailLoadingPages.delete(tabId);
       state.totalPages = 0;
     }
 
@@ -155,17 +158,23 @@ export class TabsService {
       const doc = await this.documents.load(tab.book, fileUrl);
       state.document = doc;
       state.totalPages = doc.pageCount;
+      state.thumbs = Array.from(
+        { length: state.totalPages },
+        (_, index) => ({ index: index + 1, url: null }),
+      );
 
       await this.saveTotalPagesToBackend(tab.book.id, state.totalPages);
 
       state.currentPage = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
 
       await this.loadInitialPages(tabId, 2);
+      await this.loadInitialThumbnails(tabId, 5);
 
       state.loadingDone = true;
       this.emitState(tabId);
 
       void this.loadRemainingPagesInBackground(tabId, 10, loadVersion);
+      void this.loadRemainingThumbnailsInBackground(tabId, 5, loadVersion);
 
     } catch (err) {
       console.error('Book load failed:', err);
@@ -183,7 +192,9 @@ export class TabsService {
       try { URL.revokeObjectURL(p.url); } catch {}
     }
     for (const t of state.thumbs ?? []) {
-      try { URL.revokeObjectURL(t.url); } catch {}
+      if (t.url) {
+        try { URL.revokeObjectURL(t.url); } catch {}
+      }
     }
   }
 
@@ -254,6 +265,20 @@ export class TabsService {
     }
 
     await this.loadPagesByIndexes(tabId, indexes);
+  }
+
+  private async loadInitialThumbnails(tabId: string, radius = 5): Promise<void> {
+    const state = this.tabStates.get(tabId);
+    if (!state) return;
+
+    const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
+    const indexes: number[] = [current];
+
+    for (let offset = 1; offset <= radius; offset++) {
+      indexes.push(current - offset, current + offset);
+    }
+
+    await this.loadThumbnailsByIndexes(tabId, indexes);
   }
 
   private async loadRemainingPagesInBackground(
@@ -384,6 +409,148 @@ export class TabsService {
         console.warn(`Error loading page ${p}:`, err);
       }
     }
+  }
+
+  private async loadRemainingThumbnailsInBackground(
+    tabId: string,
+    batchSize: number,
+    loadVersion: number,
+  ): Promise<void> {
+    const state = this.tabStates.get(tabId);
+
+    if (
+      !state ||
+      !state.document ||
+      this.loadVersions.get(tabId) !== loadVersion
+    ) {
+      return;
+    }
+
+    const ordered = this.buildRemainingPageOrder(state.currentPage, state.totalPages);
+    let cursor = 0;
+
+    return new Promise<void>((resolve) => {
+      const loadBatch = async () => {
+        const freshState = this.tabStates.get(tabId);
+
+        if (
+          !freshState ||
+          !freshState.document ||
+          this.loadVersions.get(tabId) !== loadVersion
+        ) {
+          resolve();
+          return;
+        }
+
+        const batch: number[] = [];
+
+        while (cursor < ordered.length && batch.length < batchSize) {
+          const page = ordered[cursor++];
+          const thumb = freshState.thumbs[page - 1];
+
+          if (thumb && !thumb.url) {
+            batch.push(page);
+          }
+        }
+
+        if (batch.length > 0) {
+          const thumbnailsLoaded = await this.loadThumbnailsByIndexes(tabId, batch);
+
+          if (thumbnailsLoaded) {
+            this.emitState(tabId);
+          }
+        }
+
+        if (this.loadVersions.get(tabId) !== loadVersion) {
+          resolve();
+          return;
+        }
+
+        if (cursor < ordered.length) {
+          if ('requestIdleCallback' in window) {
+            window.requestIdleCallback(() => {
+              void loadBatch();
+            });
+          } else {
+            setTimeout(() => {
+              void loadBatch();
+            }, 0);
+          }
+        } else {
+          resolve();
+        }
+      };
+
+      void loadBatch();
+    });
+  }
+
+  private async loadThumbnailsByIndexes(tabId: string, indexes: number[]): Promise<boolean> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return false;
+
+    const document = state.document;
+    const loadingPages = this.getThumbnailLoadingPages(tabId);
+    let thumbnailsLoaded = false;
+
+    for (const rawIndex of indexes) {
+      if (this.tabStates.get(tabId)?.document !== document) return false;
+
+      const page = Math.max(1, Math.min(rawIndex, state.totalPages));
+      const thumb = state.thumbs[page - 1];
+
+      if (!thumb || thumb.url || loadingPages.has(page)) continue;
+
+      loadingPages.add(page);
+
+      try {
+        const rendered = await document.renderPage(page, {
+          targetWidth: 300,
+          quality: 1,
+        });
+
+        if (this.tabStates.get(tabId)?.document !== document) return false;
+
+        const url = URL.createObjectURL(rendered.blob);
+        const currentThumb = state.thumbs[page - 1];
+
+        if (!currentThumb || currentThumb.url) {
+          URL.revokeObjectURL(url);
+          continue;
+        }
+
+        currentThumb.url = url;
+        currentThumb.width = rendered.width;
+        currentThumb.height = rendered.height;
+        thumbnailsLoaded = true;
+      } catch (err) {
+        if (this.tabStates.get(tabId)?.document !== document) return false;
+        console.warn(`Error loading thumbnail ${page}:`, err);
+      } finally {
+        loadingPages.delete(page);
+      }
+    }
+
+    return thumbnailsLoaded;
+  }
+
+  async ensureThumbnailLoaded(tabId: string, pageNumber: number): Promise<void> {
+    const thumbnailLoaded = await this.loadThumbnailsByIndexes(tabId, [pageNumber]);
+
+    if (thumbnailLoaded) {
+      this.emitState(tabId);
+    }
+  }
+
+  private getThumbnailLoadingPages(tabId: string): Set<number> {
+    let pages = this.thumbnailLoadingPages.get(tabId);
+
+    if (!pages) {
+      pages = new Set<number>();
+      this.thumbnailLoadingPages.set(tabId, pages);
+    }
+
+    return pages;
   }
 
   private buildRemainingPageOrder(current: number, total: number): number[] {

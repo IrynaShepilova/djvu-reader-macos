@@ -162,17 +162,25 @@
     </div>
 
     <div class="thumbnails" #thumbsContainer>
-      @for (p of state.allPages; track p.index) {
-        <img
+      @for (p of state.thumbs; track p.index) {
+        <span
           class="thumb"
           [class.active]="state.currentPage === p.index"
-          [src]="p.url"
           [attr.data-index]="p.index"
-          [attr.width]="p.width"
-          [attr.height]="p.height"
           [title]="p.index"
           (click)="onThumbClick(p.index)"
-        />
+        >
+          @if (p.url) {
+            <img
+              [src]="p.url"
+              [attr.width]="p.width"
+              [attr.height]="p.height"
+              [alt]="'Page ' + p.index"
+            />
+          } @else {
+            <span class="thumb-placeholder">{{ p.index }}</span>
+          }
+        </span>
       }
     </div>
   </div>
