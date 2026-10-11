@@ -179,24 +179,56 @@
           </div>
         }
       } @else {
-        @for (p of state.pages; track p.index) {
+        @for (spread of spreadLayouts; track spread.key) {
           <div
-            class="page-slot"
-            [attr.data-index]="p.index"
-            [style.--page-width.px]="p.width"
-            [style.--page-height.px]="p.height"
-            [style.aspect-ratio]="p.width + ' / ' + p.height"
+            class="spread-row"
+            [style.width.px]="spread.rowWidth"
+            [style.height.px]="spread.rowHeight"
           >
-            @if (getLoadedPage(p.index); as image) {
-              <img
-                class="page-img"
-                [src]="image.url"
-                [attr.width]="image.width"
-                [attr.height]="image.height"
-                [alt]="p.index"
-              />
-            } @else {
-              <div class="page-placeholder"></div>
+            @if (spread.leftPage; as left) {
+              <div
+                class="page-slot"
+                [attr.data-index]="left.page.index"
+                [style.width.px]="left.width"
+                [style.height.px]="left.height"
+                [style.left.px]="left.left"
+                [style.top.px]="left.top"
+              >
+                @if (getLoadedPage(left.page.index); as image) {
+                  <img
+                    class="page-img"
+                    [src]="image.url"
+                    [attr.width]="image.width"
+                    [attr.height]="image.height"
+                    [alt]="left.page.index"
+                  />
+                } @else {
+                  <div class="page-placeholder"></div>
+                }
+              </div>
+            }
+
+            @if (spread.rightPage; as right) {
+              <div
+                class="page-slot"
+                [attr.data-index]="right.page.index"
+                [style.width.px]="right.width"
+                [style.height.px]="right.height"
+                [style.left.px]="right.left"
+                [style.top.px]="right.top"
+              >
+                @if (getLoadedPage(right.page.index); as image) {
+                  <img
+                    class="page-img"
+                    [src]="image.url"
+                    [attr.width]="image.width"
+                    [attr.height]="image.height"
+                    [alt]="right.page.index"
+                  />
+                } @else {
+                  <div class="page-placeholder"></div>
+                }
+              </div>
             }
           </div>
         }

@@ -682,7 +682,7 @@ export class TabsService {
       allPages: [],
       currentPage: this.restoreLastPage(bookUrl) ?? 1,
       layoutMode: 'single',
-      fitMode: 'none',
+      fitMode: 'width',
       zoom: 1,
       totalPages: 0,
       loadingProgress: 0,

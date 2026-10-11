@@ -20,6 +20,22 @@ interface SinglePageLayout {
   pageTop: number;
 }
 
+interface SpreadPageLayout {
+  page: PageMetadata;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+}
+
+interface SpreadLayout {
+  key: number;
+  rowWidth: number;
+  rowHeight: number;
+  leftPage?: SpreadPageLayout;
+  rightPage?: SpreadPageLayout;
+}
+
 @Component({
   selector: 'app-reader',
   standalone: true,
@@ -50,6 +66,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   suppressScrollDetect = false;
 
   singlePageLayouts: SinglePageLayout[] = [];
+  spreadLayouts: SpreadLayout[] = [];
+  private readonly spreadGap = 16;
   private viewportWidth = 0;
   private viewportHeight = 0;
   private viewportObserver?: ResizeObserver;
@@ -97,8 +115,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     );
     if (!el) return;
 
+    const target = this.getLayoutAnchorElement(el);
     const contRect = container.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
+    const elRect = target.getBoundingClientRect();
 
     const targetScrollTop =
       container.scrollTop + (elRect.top - contRect.top);
@@ -399,12 +418,19 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   private rebuildSinglePageLayouts() {
     if (
-      this.layoutMode !== 'single' ||
       !this.state?.pages?.length ||
       !this.viewportWidth ||
       !this.viewportHeight
     ) {
       this.singlePageLayouts = [];
+      this.spreadLayouts = [];
+      return;
+    }
+
+    if (this.layoutMode === 'spread') {
+      this.singlePageLayouts = [];
+      this.spreadLayouts = this.createSpreadLayouts();
+      this.schedulePendingReadingRestore();
       return;
     }
 
@@ -445,8 +471,76 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
         pageTop: (rowHeight - pageHeight) / 2,
       };
     });
+    this.spreadLayouts = [];
 
     this.schedulePendingReadingRestore();
+  }
+
+  private createSpreadLayouts(): SpreadLayout[] {
+    const layouts: SpreadLayout[] = [];
+    const pages = this.state.pages;
+
+    for (let spreadIndex = 0; ; spreadIndex++) {
+      const leftPage = spreadIndex === 0 ? undefined : pages[spreadIndex * 2 - 1];
+      const rightPage = spreadIndex === 0 ? pages[0] : pages[spreadIndex * 2];
+      if (!leftPage && !rightPage) break;
+
+      const leftSize = leftPage ?? rightPage;
+      const rightSize = rightPage ?? leftPage;
+
+      if (!leftSize || !rightSize) continue;
+
+      const intrinsicWidth = leftSize.width + this.spreadGap + rightSize.width;
+      const intrinsicHeight = Math.max(leftSize.height, rightSize.height);
+      let scale: number;
+
+      if (this.fitMode === 'height') {
+        scale = Math.min(
+          this.viewportWidth / intrinsicWidth,
+          this.viewportHeight / intrinsicHeight,
+        );
+      } else if (this.fitMode === 'width') {
+        scale = this.viewportWidth / intrinsicWidth;
+      } else {
+        scale = Math.min(1, this.viewportWidth / intrinsicWidth);
+      }
+
+      const leftWidth = leftSize.width * scale * this.zoom;
+      const leftHeight = leftSize.height * scale * this.zoom;
+      const rightWidth = rightSize.width * scale * this.zoom;
+      const rightHeight = rightSize.height * scale * this.zoom;
+      const gap = this.spreadGap * scale * this.zoom;
+      const spreadWidth = leftWidth + gap + rightWidth;
+      const spreadHeight = Math.max(leftHeight, rightHeight);
+      const rowWidth = Math.max(this.viewportWidth, spreadWidth);
+      const rowHeight = this.fitMode === 'height'
+        ? Math.max(this.viewportHeight, spreadHeight)
+        : spreadHeight;
+      const spreadLeft = (rowWidth - spreadWidth) / 2;
+      const spreadTop = (rowHeight - spreadHeight) / 2;
+
+      layouts.push({
+        key: spreadIndex + 1,
+        rowWidth,
+        rowHeight,
+        leftPage: leftPage ? {
+          page: leftPage,
+          width: leftWidth,
+          height: leftHeight,
+          left: spreadLeft,
+          top: spreadTop + (spreadHeight - leftHeight) / 2,
+        } : undefined,
+        rightPage: rightPage ? {
+          page: rightPage,
+          width: rightWidth,
+          height: rightHeight,
+          left: spreadLeft + leftWidth + gap,
+          top: spreadTop + (spreadHeight - rightHeight) / 2,
+        } : undefined,
+      });
+    }
+
+    return layouts;
   }
 
   private handleStateUpdate() {
@@ -523,7 +617,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     if (element) {
       const containerRect = container.getBoundingClientRect();
-      const pageRect = element.getBoundingClientRect();
+      const pageRect = this.getLayoutAnchorElement(element).getBoundingClientRect();
       const pageTop = container.scrollTop + (pageRect.top - containerRect.top);
 
       container.scrollTo({
@@ -595,7 +689,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       );
 
       if (!container || !element) {
-        if (this.layoutMode === 'single' && !this.singlePageLayouts.length) {
+        if (!this.hasCurrentLayoutSlots()) {
           this.scheduleViewportMeasurement();
           return;
         }
@@ -621,7 +715,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.state.currentPage = page;
 
     const contRect = container.getBoundingClientRect();
-    const pageRect = element.getBoundingClientRect();
+    const pageRect = this.getLayoutAnchorElement(element).getBoundingClientRect();
     const pageTop = container.scrollTop + (pageRect.top - contRect.top);
     const targetScrollTop = pageTop + pageRect.height * offsetRatio;
 
@@ -646,6 +740,18 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
         this.suppressScrollDetect = false;
       });
     });
+  }
+
+  private hasCurrentLayoutSlots(): boolean {
+    return this.layoutMode === 'single'
+      ? this.singlePageLayouts.length > 0
+      : this.spreadLayouts.length > 0;
+  }
+
+  private getLayoutAnchorElement(pageElement: HTMLElement): HTMLElement {
+    if (this.layoutMode !== 'spread') return pageElement;
+
+    return pageElement.closest<HTMLElement>('.spread-row') ?? pageElement;
   }
 
   private async goToPosition(position: ReadingPosition, smooth = true) {
