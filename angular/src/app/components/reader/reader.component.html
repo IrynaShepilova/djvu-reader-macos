@@ -149,26 +149,57 @@
          [class.fit-height]="fitMode === 'height'"
          [style.--zoom]="zoom"
     >
-      @for (p of state.pages; track p.index) {
-        <div
-          class="page-slot"
-          [attr.data-index]="p.index"
-          [style.--page-width.px]="p.width"
-          [style.--page-height.px]="p.height"
-          [style.aspect-ratio]="p.width + ' / ' + p.height"
-        >
-          @if (getLoadedPage(p.index); as image) {
-            <img
-              class="page-img"
-              [src]="image.url"
-              [attr.width]="image.width"
-              [attr.height]="image.height"
-              [alt]="p.index"
-            />
-          } @else {
-            <div class="page-placeholder"></div>
-          }
-        </div>
+      @if (layoutMode === 'single') {
+        @for (layout of singlePageLayouts; track layout.page.index) {
+          <div
+            class="page-row"
+            [style.width.px]="layout.rowWidth"
+            [style.height.px]="layout.rowHeight"
+          >
+            <div
+              class="page-slot"
+              [attr.data-index]="layout.page.index"
+              [style.width.px]="layout.pageWidth"
+              [style.height.px]="layout.pageHeight"
+              [style.left.px]="layout.pageLeft"
+              [style.top.px]="layout.pageTop"
+            >
+              @if (getLoadedPage(layout.page.index); as image) {
+                <img
+                  class="page-img"
+                  [src]="image.url"
+                  [attr.width]="image.width"
+                  [attr.height]="image.height"
+                  [alt]="layout.page.index"
+                />
+              } @else {
+                <div class="page-placeholder"></div>
+              }
+            </div>
+          </div>
+        }
+      } @else {
+        @for (p of state.pages; track p.index) {
+          <div
+            class="page-slot"
+            [attr.data-index]="p.index"
+            [style.--page-width.px]="p.width"
+            [style.--page-height.px]="p.height"
+            [style.aspect-ratio]="p.width + ' / ' + p.height"
+          >
+            @if (getLoadedPage(p.index); as image) {
+              <img
+                class="page-img"
+                [src]="image.url"
+                [attr.width]="image.width"
+                [attr.height]="image.height"
+                [alt]="p.index"
+              />
+            } @else {
+              <div class="page-placeholder"></div>
+            }
+          </div>
+        }
       }
     </div>
 

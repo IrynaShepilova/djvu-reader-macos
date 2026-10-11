@@ -681,11 +681,40 @@ export class TabsService {
       thumbs: [],
       allPages: [],
       currentPage: this.restoreLastPage(bookUrl) ?? 1,
+      layoutMode: 'single',
+      fitMode: 'none',
+      zoom: 1,
       totalPages: 0,
       loadingProgress: 0,
       loadingDone: false,
       loading: false
     };
+  }
+
+  updateReaderDisplay(
+    tabId: string,
+    patch: Partial<Pick<TabState, 'layoutMode' | 'fitMode' | 'zoom'>>,
+  ) {
+    const state = this.tabStates.get(tabId);
+    if (!state) return;
+
+    let changed = false;
+    if (patch.layoutMode !== undefined) {
+      changed ||= state.layoutMode !== patch.layoutMode;
+      state.layoutMode = patch.layoutMode;
+    }
+    if (patch.fitMode !== undefined) {
+      changed ||= state.fitMode !== patch.fitMode;
+      state.fitMode = patch.fitMode;
+    }
+    if (patch.zoom !== undefined) {
+      changed ||= state.zoom !== patch.zoom;
+      state.zoom = patch.zoom;
+    }
+
+    if (changed) {
+      this.emitState(tabId);
+    }
   }
 
   private pageKey(bookUrl: string) {

@@ -1,17 +1,24 @@
 import {
   AfterViewInit,
-  Component, ElementRef, Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild,
-  ChangeDetectionStrategy
+  afterNextRender, AfterRenderRef, ChangeDetectionStrategy, Component, ElementRef, Injector,
+  Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild,
 } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import {TabState} from '../../interfaces/tabState';
+import {ReaderFitMode, ReaderLayoutMode, ReadingPosition, TabState} from '../../interfaces/tabState';
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
 import {Subscription} from 'rxjs';
-import { ReadingPosition } from '../../interfaces/tabState';
+type PageMetadata = TabState['pages'][number];
 
-type PageLayoutMode = 'single' | 'spread';
-type FitMode = 'none' | 'width' | 'height';
+interface SinglePageLayout {
+  page: PageMetadata;
+  rowWidth: number;
+  rowHeight: number;
+  pageWidth: number;
+  pageHeight: number;
+  pageLeft: number;
+  pageTop: number;
+}
 
 @Component({
   selector: 'app-reader',
@@ -25,7 +32,10 @@ type FitMode = 'none' | 'width' | 'height';
 })
 export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
 
-  constructor(private tabsService : TabsService ) {
+  constructor(
+    private tabsService: TabsService,
+    private injector: Injector,
+  ) {
   }
 
   @ViewChild('pagesContainer') pagesRef!: ElementRef<HTMLDivElement>;
@@ -36,23 +46,41 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   private readonly apiBase = environment.apiBase;
   private prevPageCount = 0;
   private prevTabCurrentPage = 0;
-   stateSub?: Subscription;
+  stateSub?: Subscription;
   suppressScrollDetect = false;
 
-  layoutMode: PageLayoutMode = 'single';
-  fitMode: FitMode = 'none';
+  singlePageLayouts: SinglePageLayout[] = [];
+  private viewportWidth = 0;
+  private viewportHeight = 0;
+  private viewportObserver?: ResizeObserver;
+  private viewportFrame?: number;
+  private layoutAnchorRenderRef?: AfterRenderRef;
+  private pendingLayoutAnchor?: ReadingPosition;
+  private pendingReadingRestore?: { position: ReadingPosition; smooth: boolean };
+  private readingRestoreFrame?: number;
+  private callbackVersion = 0;
 
-  zoom = 1; // 1 = 100%
   readonly zoomStep = 0.1;
   readonly zoomMin = 0.3;
   readonly zoomMax = 3;
+
+  get layoutMode(): ReaderLayoutMode {
+    return this.state?.layoutMode ?? 'single';
+  }
+
+  get fitMode(): ReaderFitMode {
+    return this.state?.fitMode ?? 'none';
+  }
+
+  get zoom(): number {
+    return this.state?.zoom ?? 1;
+  }
 
   async ngOnInit() {
   }
 
 
   onThumbClick(index: number) {
-    console.log('onThumbClick index', index);
     void this.goToPage(index);
   }
 
@@ -168,6 +196,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   ngAfterViewInit() {
     const container = this.pagesRef.nativeElement;
     container.addEventListener('scroll', this.onScroll);
+
+    this.viewportObserver = new ResizeObserver(() => {
+      this.scheduleViewportMeasurement();
+    });
+    this.viewportObserver.observe(container);
+    this.scheduleViewportMeasurement();
   }
 
   onScroll = () => {
@@ -233,70 +267,38 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   focusCurrentPage() {
-    const p = this.normalizePage(this.state.currentPage);
-
-    const container = this.pagesRef?.nativeElement;
     if (!this.state || !this.state.pages.length) return;
 
-    this.suppressScrollDetect = true;
-    this.state.currentPage = p;
-
-    this.scrollToPage(p, false);
-    this.scrollToActiveThumbnail(p, false);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        this.suppressScrollDetect = false;
-      });
-    });
+    void this.restoreReadingPosition(0, false);
   }
 
 
   ngOnChanges(changes: SimpleChanges): void  {
     if (changes['tabId']) {
+      this.cancelPendingLayoutCallbacks();
+      this.prevPageCount = 0;
+      this.prevTabCurrentPage = 0;
+      this.suppressScrollDetect = true;
       this.stateSub?.unsubscribe();
 
       this.stateSub = this.tabsService
         .getState$(this.tabId)
         .subscribe(state => {
-          this.state = state;
+          this.updateState(state);
         });
+      return;
     }
 
     if (!this.state) return;
 
-    this.stateSub?.unsubscribe();
-
-    this.stateSub = this.tabsService
-      .getState$(this.tabId)
-      .subscribe(state => {
-        this.state = state;
-      });
-
-    if (!this.state.pages.length) return;
-
-    if (this.state.pages.length !== this.prevPageCount) {
-      this.prevPageCount = this.state.pages.length;
-
-      queueMicrotask(() => {
-        const p = this.normalizePage(this.state.currentPage);
-        this.state.currentPage = p;
-        this.scrollToPage(p, false);
-        this.scrollToActiveThumbnail(p, false);
-      });
-    }
-
-    if (this.state.currentPage !== this.prevTabCurrentPage) {
-      this.prevTabCurrentPage = this.normalizePage(this.state.currentPage);
-
-      queueMicrotask(() => {
-        this.scrollToActiveThumbnail(this.state.currentPage);
-      });
-    }
+    this.updateState(this.state);
   }
 
   ngOnDestroy() {
     this.stateSub?.unsubscribe();
+    this.viewportObserver?.disconnect();
+
+    this.cancelPendingLayoutCallbacks();
 
     const container = this.pagesRef?.nativeElement;
     if (container) {
@@ -321,29 +323,237 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.tabsService.saveCurrentPage(this.tabId, this.state.currentPage);
   }
 
-  setLayout(mode: PageLayoutMode) {
-    this.layoutMode = mode;
-    queueMicrotask(() => this.focusCurrentPage());
+  setLayout(mode: ReaderLayoutMode) {
+    if (mode === this.layoutMode) return;
+
+    this.changeLayout(() => {
+      this.tabsService.updateReaderDisplay(this.tabId, { layoutMode: mode });
+    });
   }
 
-  setFit(mode: FitMode) {
-    this.fitMode = mode;
-    queueMicrotask(() => this.focusCurrentPage());
+  setFit(mode: ReaderFitMode) {
+    if (mode === this.fitMode) return;
+
+    this.changeLayout(() => {
+      this.tabsService.updateReaderDisplay(this.tabId, { fitMode: mode });
+    });
   }
 
   zoomIn() {
-    this.setFit('none');
-    this.zoom = Math.min(this.zoomMax, Math.round((this.zoom + this.zoomStep) * 10) / 10);
+    const zoom = Math.min(this.zoomMax, Math.round((this.zoom + this.zoomStep) * 10) / 10);
+    if (zoom === this.zoom) return;
+
+    this.changeLayout(() => {
+      this.tabsService.updateReaderDisplay(this.tabId, { zoom });
+    });
   }
 
   zoomOut() {
-    this.setFit('none');
-    this.zoom = Math.max(this.zoomMin, Math.round((this.zoom - this.zoomStep) * 10) / 10);
+    const zoom = Math.max(this.zoomMin, Math.round((this.zoom - this.zoomStep) * 10) / 10);
+    if (zoom === this.zoom) return;
+
+    this.changeLayout(() => {
+      this.tabsService.updateReaderDisplay(this.tabId, { zoom });
+    });
   }
 
   resetZoom() {
-    this.zoom = 1;
-    this.fitMode = 'none';
+    if (this.zoom === 1) return;
+
+    this.changeLayout(() => {
+      this.tabsService.updateReaderDisplay(this.tabId, { zoom: 1 });
+    });
+  }
+
+  private updateState(state: TabState) {
+    this.state = state;
+    this.rebuildSinglePageLayouts();
+    this.handleStateUpdate();
+  }
+
+  private scheduleViewportMeasurement() {
+    if (this.viewportFrame !== undefined) return;
+
+    const callbackVersion = this.callbackVersion;
+    this.viewportFrame = requestAnimationFrame(() => {
+      this.viewportFrame = undefined;
+      if (callbackVersion !== this.callbackVersion) return;
+
+      const container = this.pagesRef?.nativeElement;
+      if (!container) return;
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      if (width === this.viewportWidth && height === this.viewportHeight) return;
+
+      this.viewportWidth = width;
+      this.viewportHeight = height;
+      this.rebuildSinglePageLayouts();
+
+      if (this.pendingLayoutAnchor) {
+        this.scheduleLayoutAnchor(this.pendingLayoutAnchor);
+      }
+    });
+  }
+
+  private rebuildSinglePageLayouts() {
+    if (
+      this.layoutMode !== 'single' ||
+      !this.state?.pages?.length ||
+      !this.viewportWidth ||
+      !this.viewportHeight
+    ) {
+      this.singlePageLayouts = [];
+      return;
+    }
+
+    this.singlePageLayouts = this.state.pages.map(page => {
+      const aspectRatio = page.width / page.height;
+      let baseWidth: number;
+      let baseHeight: number;
+
+      if (this.fitMode === 'height') {
+        const scale = Math.min(
+          this.viewportWidth / page.width,
+          this.viewportHeight / page.height,
+        );
+        baseWidth = page.width * scale;
+        baseHeight = page.height * scale;
+      } else if (this.fitMode === 'width') {
+        baseWidth = this.viewportWidth;
+        baseHeight = baseWidth / aspectRatio;
+      } else {
+        baseWidth = Math.min(page.width, this.viewportWidth);
+        baseHeight = baseWidth / aspectRatio;
+      }
+
+      const pageWidth = baseWidth * this.zoom;
+      const pageHeight = baseHeight * this.zoom;
+      const rowWidth = Math.max(this.viewportWidth, pageWidth);
+      const rowHeight = this.fitMode === 'height'
+        ? Math.max(this.viewportHeight, pageHeight)
+        : pageHeight;
+
+      return {
+        page,
+        rowWidth,
+        rowHeight,
+        pageWidth,
+        pageHeight,
+        pageLeft: (rowWidth - pageWidth) / 2,
+        pageTop: (rowHeight - pageHeight) / 2,
+      };
+    });
+
+    this.schedulePendingReadingRestore();
+  }
+
+  private handleStateUpdate() {
+    if (!this.state.pages.length) return;
+
+    const callbackVersion = this.callbackVersion;
+    const tabId = this.tabId;
+
+    if (this.state.pages.length !== this.prevPageCount) {
+      this.prevPageCount = this.state.pages.length;
+
+      queueMicrotask(() => {
+        if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
+
+        const p = this.normalizePage(this.state.currentPage);
+        this.state.currentPage = p;
+        this.scrollToPage(p, false);
+        this.scrollToActiveThumbnail(p, false);
+      });
+    }
+
+    if (this.state.currentPage !== this.prevTabCurrentPage) {
+      this.prevTabCurrentPage = this.normalizePage(this.state.currentPage);
+
+      queueMicrotask(() => {
+        if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
+        this.scrollToActiveThumbnail(this.state.currentPage);
+      });
+    }
+  }
+
+  private changeLayout(change: () => void) {
+    const page = this.normalizePage(this.state.currentPage);
+    const savedPosition = this.tabsService.getSavedReadingPosition(this.tabId);
+    const position: ReadingPosition = {
+      page,
+      offsetRatio: savedPosition?.page === page
+        ? savedPosition.offsetRatio
+        : 0,
+    };
+
+    this.suppressScrollDetect = true;
+    this.pendingLayoutAnchor = position;
+    change();
+    this.rebuildSinglePageLayouts();
+    this.scheduleLayoutAnchor(position);
+  }
+
+  private scheduleLayoutAnchor(position: ReadingPosition) {
+    if (this.layoutAnchorRenderRef) {
+      this.layoutAnchorRenderRef.destroy();
+      this.layoutAnchorRenderRef = undefined;
+    }
+
+    const callbackVersion = this.callbackVersion;
+    const tabId = this.tabId;
+    this.layoutAnchorRenderRef = afterNextRender(() => {
+      this.layoutAnchorRenderRef = undefined;
+      if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
+      this.restoreLayoutAnchor(position);
+    }, { injector: this.injector });
+  }
+
+  private restoreLayoutAnchor(position: ReadingPosition) {
+    const container = this.pagesRef?.nativeElement;
+    const page = this.normalizePage(this.state.currentPage);
+
+    if (!container) {
+      this.suppressScrollDetect = false;
+      return;
+    }
+
+    const element = container.querySelector<HTMLElement>(`[data-index="${page}"]`);
+
+    if (element) {
+      const containerRect = container.getBoundingClientRect();
+      const pageRect = element.getBoundingClientRect();
+      const pageTop = container.scrollTop + (pageRect.top - containerRect.top);
+
+      container.scrollTo({
+        top: pageTop + pageRect.height * position.offsetRatio,
+        behavior: 'instant',
+      });
+    }
+    requestAnimationFrame(() => {
+      const rect = element?.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+    });
+
+    this.scrollToActiveThumbnail(page, false);
+    this.tabsService.saveReadingPosition(this.tabId, {
+      page,
+      offsetRatio: position.offsetRatio,
+    });
+
+    const callbackVersion = this.callbackVersion;
+    const tabId = this.tabId;
+    requestAnimationFrame(() => {
+      if (
+        callbackVersion !== this.callbackVersion ||
+        tabId !== this.tabId ||
+        this.layoutAnchorRenderRef !== undefined
+      ) return;
+
+      this.pendingLayoutAnchor = undefined;
+      this.suppressScrollDetect = false;
+    });
   }
 
   get readerBusy(): boolean {
@@ -351,58 +561,88 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   async restoreReadingPosition(offsetRatio: number, smooth = false) {
-    if (!this.state || !this.state.pages.length) return;
+    if (!this.state || !this.state.pages.length) {
+      this.suppressScrollDetect = false;
+      return;
+    }
 
     this.suppressScrollDetect = true;
+    this.pendingReadingRestore = {
+      position: {
+        page: this.normalizePage(this.state.currentPage),
+        offsetRatio: Math.max(0, Math.min(1, offsetRatio)),
+      },
+      smooth,
+    };
+    this.schedulePendingReadingRestore();
+  }
 
-    const p = this.normalizePage(this.state.currentPage);
-    this.state.currentPage = p;
+  private schedulePendingReadingRestore() {
+    if (!this.pendingReadingRestore || this.readingRestoreFrame !== undefined) return;
 
-    const container = this.pagesRef?.nativeElement;
+    const callbackVersion = this.callbackVersion;
+    const tabId = this.tabId;
+    this.readingRestoreFrame = requestAnimationFrame(() => {
+      this.readingRestoreFrame = undefined;
+      if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
 
-    if (!container) {
-      this.suppressScrollDetect = false;
-      return;
-    }
+      const pending = this.pendingReadingRestore;
+      if (!pending) return;
 
-    const el = container.querySelector<HTMLElement>(
-      `[data-index="${p}"]`
-    );
-
-    if (!el) {
-      this.suppressScrollDetect = false;
-      return;
-    }
-
-    const contRect = container.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-
-    const pageTop =
-      container.scrollTop + (elRect.top - contRect.top);
-
-    const targetScrollTop =
-      pageTop + elRect.height * offsetRatio;
-
-    this.scrollToActiveThumbnail(p, smooth);
-
-    if (smooth) {
-      await this.smoothScrollTo(
-        container,
-        targetScrollTop,
-        180
+      const container = this.pagesRef?.nativeElement;
+      const element = container?.querySelector<HTMLElement>(
+        `[data-index="${pending.position.page}"]`
       );
 
-      this.suppressScrollDetect = false;
+      if (!container || !element) {
+        if (this.layoutMode === 'single' && !this.singlePageLayouts.length) {
+          this.scheduleViewportMeasurement();
+          return;
+        }
+
+        this.pendingReadingRestore = undefined;
+        this.suppressScrollDetect = false;
+        return;
+      }
+
+      this.pendingReadingRestore = undefined;
+      void this.applyReadingPosition(container, element, pending, callbackVersion, tabId);
+    });
+  }
+
+  private async applyReadingPosition(
+    container: HTMLElement,
+    element: HTMLElement,
+    pending: { position: ReadingPosition; smooth: boolean },
+    callbackVersion: number,
+    tabId: string,
+  ) {
+    const { page, offsetRatio } = pending.position;
+    this.state.currentPage = page;
+
+    const contRect = container.getBoundingClientRect();
+    const pageRect = element.getBoundingClientRect();
+    const pageTop = container.scrollTop + (pageRect.top - contRect.top);
+    const targetScrollTop = pageTop + pageRect.height * offsetRatio;
+
+    this.scrollToActiveThumbnail(page, pending.smooth);
+
+    if (pending.smooth) {
+      await this.smoothScrollTo(container, targetScrollTop, 180, callbackVersion, tabId);
+      if (callbackVersion === this.callbackVersion && tabId === this.tabId) {
+        this.suppressScrollDetect = false;
+      }
       return;
     }
 
-    container.scrollTo({
-      top: targetScrollTop,
-      behavior: 'instant',
-    });
+    container.scrollTo({ top: targetScrollTop, behavior: 'instant' });
+    this.releaseScrollDetection(callbackVersion, tabId);
+  }
 
+  private releaseScrollDetection(callbackVersion = this.callbackVersion, tabId = this.tabId) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
         this.suppressScrollDetect = false;
       });
     });
@@ -473,13 +713,44 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.tabsService.updateCurrentHistoryPosition(this.tabId, position);
   }
 
-  private smoothScrollTo(container: HTMLElement, target: number, duration = 180): Promise<void> {
+  private cancelPendingLayoutCallbacks() {
+    this.callbackVersion++;
+
+    if (this.viewportFrame !== undefined) {
+      cancelAnimationFrame(this.viewportFrame);
+      this.viewportFrame = undefined;
+    }
+    if (this.layoutAnchorRenderRef) {
+      this.layoutAnchorRenderRef.destroy();
+      this.layoutAnchorRenderRef = undefined;
+    }
+    if (this.readingRestoreFrame !== undefined) {
+      cancelAnimationFrame(this.readingRestoreFrame);
+      this.readingRestoreFrame = undefined;
+    }
+
+    this.pendingLayoutAnchor = undefined;
+    this.pendingReadingRestore = undefined;
+  }
+
+  private smoothScrollTo(
+    container: HTMLElement,
+    target: number,
+    duration = 180,
+    callbackVersion = this.callbackVersion,
+    tabId = this.tabId,
+  ): Promise<void> {
     const start = container.scrollTop;
     const distance = target - start;
     const startedAt = performance.now();
 
     return new Promise(resolve => {
       const step = (now: number) => {
+        if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) {
+          resolve();
+          return;
+        }
+
         const elapsed = now - startedAt;
         const progress = Math.min(elapsed / duration, 1);
 

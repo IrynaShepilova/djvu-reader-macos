@@ -14,11 +14,28 @@
 
     .pages {
       flex: 1;
-      overflow-y: auto;
+      min-width: 0;
+      overflow: auto;
+      scrollbar-gutter: stable;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 1.5rem;
+
+      &.single {
+        align-items: flex-start;
+
+        .page-row {
+          position: relative;
+          flex: 0 0 auto;
+        }
+
+        .page-slot {
+          position: absolute;
+          max-width: none;
+          aspect-ratio: auto;
+        }
+      }
 
       .page-slot {
         width: var(--page-width);
@@ -64,22 +81,22 @@
       }
     }
 
-    .pages.fit-width .page-img {
+    .pages.spread.fit-width .page-img {
       width: 100%;
       max-width: 100%;
     }
 
-    .pages.fit-width .page-slot {
+    .pages.spread.fit-width .page-slot {
       width: 100%;
     }
 
-    .pages.fit-height .page-img {
+    .pages.spread.fit-height .page-img {
       max-height: calc(100vh - 100px);
       width: 100%;
       height: 100%;
     }
 
-    .pages.fit-height .page-slot {
+    .pages.spread.fit-height .page-slot {
       width: auto;
       height: min(var(--page-height), calc(100vh - 100px));
       max-width: 100%;
