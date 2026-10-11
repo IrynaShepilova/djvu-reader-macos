@@ -150,7 +150,10 @@
          [style.--zoom]="zoom"
     >
       @if (layoutMode === 'single') {
-        @for (layout of singlePageLayouts; track layout.page.index) {
+        @if (topSpacerHeight > 0) {
+          <div class="virtual-spacer" [style.height.px]="topSpacerHeight"></div>
+        }
+        @for (layout of renderedSinglePageLayouts; track layout.page.index) {
           <div
             class="page-row"
             [style.width.px]="layout.rowWidth"
@@ -178,8 +181,14 @@
             </div>
           </div>
         }
+        @if (bottomSpacerHeight > 0) {
+          <div class="virtual-spacer" [style.height.px]="bottomSpacerHeight"></div>
+        }
       } @else {
-        @for (spread of spreadLayouts; track spread.key) {
+        @if (topSpacerHeight > 0) {
+          <div class="virtual-spacer" [style.height.px]="topSpacerHeight"></div>
+        }
+        @for (spread of renderedSpreadLayouts; track spread.key) {
           <div
             class="spread-row"
             [style.width.px]="spread.rowWidth"
@@ -231,6 +240,9 @@
               </div>
             }
           </div>
+        }
+        @if (bottomSpacerHeight > 0) {
+          <div class="virtual-spacer" [style.height.px]="bottomSpacerHeight"></div>
         }
       }
     </div>
