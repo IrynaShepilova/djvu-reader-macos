@@ -14,7 +14,7 @@
     (toggleViewMode)="toggleViewMode()"
     (refresh)="refreshLibrary()"
     [showHidden]="showHidden()"
-    (toggleHidden)="showHidden.update(value => !value)"
+    (toggleHidden)="toggleShowHidden()"
     (checkLibrary)="checkLibrary()"
     (scan)="scanLibrary()"
     (openFolders)="openScanFoldersDialog()"
@@ -37,56 +37,58 @@
       </div>
     </div>
   }
-  @if (sortMode() === 'byDirectory') {
-    <div class="directories-content">
-      @for (group of directoryGroups(); track group.title) {
-        <section class="directory-group">
-          <h3 class="directory-title"
-              [class.directory-title--unavailable]="group.scanFolder.status !== 'ok'"
-              (click)="toggleGroup(group.title)">
-            <mat-icon class="material-symbols-outlined">
-              {{
-                isNetworkFolder(group.scanFolder)
-                  ? 'public'
-                  : isGroupCollapsed(group.title)
-                    ? 'folder'
-                    : 'folder_open'
-              }}
-            </mat-icon>
-            {{ group.title }} ({{ group.books.length }})
-            <mat-icon class="material-symbols-outlined">
-              {{ isGroupCollapsed(group.title) ? 'chevron_right' : 'expand_less' }}
-            </mat-icon>
+  <div class="library-results" #libraryResults>
+    @if (sortMode() === 'byDirectory') {
+      <div class="directories-content">
+        @for (rendered of renderedDirectoryGroups(); track rendered.group.title) {
+          @let group = rendered.group;
+          <section class="directory-group">
+            <h3 class="directory-title"
+                [class.directory-title--unavailable]="group.scanFolder.status !== 'ok'"
+                (click)="toggleGroup(group.title)">
+              <mat-icon class="material-symbols-outlined">
+                {{
+                  isNetworkFolder(group.scanFolder)
+                    ? 'public'
+                    : isGroupCollapsed(group.title)
+                      ? 'folder'
+                      : 'folder_open'
+                }}
+              </mat-icon>
+              {{ group.title }} ({{ group.books.length }})
+              <mat-icon class="material-symbols-outlined">
+                {{ isGroupCollapsed(group.title) ? 'chevron_right' : 'expand_less' }}
+              </mat-icon>
+            </h3>
 
-          </h3>
-
-          <div
-            class="directory-group-content"
-            [class.directory-group-content--collapsed]="isGroupCollapsed(group.title)"
-          >
-            <div class="directory-group-content-inner">
-
-              <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
-                @for (b of group.books; track b.url) {
-                  <ng-container
-                    *ngTemplateOutlet="bookCard; context: { $implicit: b }"
-                  />
-                }
+            @if (rendered.books.length) {
+              <div class="directory-group-content">
+                <div class="directory-group-content-inner">
+                  <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
+                    @for (b of rendered.books; track b.url) {
+                      <ng-container
+                        *ngTemplateOutlet="bookCard; context: { $implicit: b }"
+                      />
+                    }
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </section>
-      }
-    </div>
-  } @else {
-    <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
-      @for (b of sortedBooks(); track b.url) {
-        <ng-container
-          *ngTemplateOutlet="bookCard; context: { $implicit: b }"
-        />
-      }
-    </div>
-  }
+            }
+          </section>
+        }
+      </div>
+    } @else {
+      <div class="files" [class.tile]="viewMode === 'tile'" [class.list]="viewMode === 'list'">
+        @for (b of renderedBooks(); track b.url) {
+          <ng-container
+            *ngTemplateOutlet="bookCard; context: { $implicit: b }"
+          />
+        }
+      </div>
+    }
+  </div>
+
+  <div class="render-sentinel" #renderSentinel aria-hidden="true"></div>
 
   <ng-template #bookCard let-b>
     @if (!b.hidden || showHidden()) {

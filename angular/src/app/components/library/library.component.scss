@@ -53,6 +53,10 @@
   border-top: 1px solid #d7d7d7;
 }
 
+.render-sentinel {
+  height: 1px;
+}
+
 .directory-title {
   font-size: 18px;
   color: #333;
@@ -111,4 +115,3 @@
 .scroll-top-btn:hover {
   background: #f3f3f3;
 }
-

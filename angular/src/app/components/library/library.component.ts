@@ -8,7 +8,10 @@ import {
   HostListener,
   inject,
   Signal,
-  ChangeDetectionStrategy
+  ChangeDetectionStrategy,
+  AfterViewInit,
+  ViewChild,
+  effect,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
@@ -42,6 +45,12 @@ type DirectoryGroup = {
   books: Book[];
 };
 
+type DirectoryRenderEntry =
+  | { type: 'header'; key: string; group: DirectoryGroup }
+  | { type: 'book'; key: string; groupKey: string; book: Book };
+
+type RenderedDirectoryGroup = { group: DirectoryGroup; books: Book[] };
+
 @Component({
   selector: 'app-library',
   standalone: true,
@@ -57,7 +66,7 @@ type DirectoryGroup = {
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './library.component.scss'
 })
-export class LibraryComponent implements OnInit, OnDestroy {
+export class LibraryComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(
     private http: HttpClient,
@@ -69,6 +78,19 @@ export class LibraryComponent implements OnInit, OnDestroy {
     private scanFoldersFacade: ScanFoldersFacade,
   ) {
     this.scanFolders = this.scanFoldersFacade.scanFolders;
+
+    effect(() => {
+      this.sortMode();
+      this.showHidden();
+
+      if (this.sortMode() === 'byDirectory') {
+        this.directoryRenderEntries();
+      } else {
+        this.displayBooks();
+      }
+
+      this.resetIncrementalRendering();
+    });
   }
 
 
@@ -109,6 +131,8 @@ export class LibraryComponent implements OnInit, OnDestroy {
   sortMenuOpen = false;
 
   private readonly el = inject(ElementRef<HTMLElement>);
+  @ViewChild('libraryResults') libraryResultsRef?: ElementRef<HTMLElement>;
+  @ViewChild('renderSentinel') renderSentinelRef?: ElementRef<HTMLElement>;
   readonly scanFolders: Signal<ScanFolder[]>;
   collapsedGroups = signal(new Set<string>());
 
@@ -118,12 +142,164 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
   showScrollTop = signal(false);
 
+  private readonly renderedItemLimit = signal(0);
+  private readonly initialViewportHeights = 3;
+  private readonly appendViewportHeights = 2;
+  private renderObserver?: IntersectionObserver;
+  private libraryResizeObserver?: ResizeObserver;
+  private appendFrame?: number;
+  private pendingRenderTarget?: number;
+  private pendingRenderComplete?: () => void;
+
   private removeOpenFileListener?: () => void;
   private removeOpenFilesListener?: () => void;
 
   @HostListener('window:scroll')
   onWindowScroll() {
     this.showScrollTop.set(window.scrollY > window.innerHeight);
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    this.resetIncrementalRendering();
+  }
+
+  ngAfterViewInit() {
+    const results = this.libraryResultsRef?.nativeElement;
+    const sentinel = this.renderSentinelRef?.nativeElement;
+
+    if (results) {
+      this.libraryResizeObserver = new ResizeObserver(entries => {
+        const width = entries[0]?.contentRect.width ?? 0;
+        if (!width || width === this.observedLibraryWidth) return;
+        this.observedLibraryWidth = width;
+        this.resetIncrementalRendering();
+      });
+      this.observedLibraryWidth = results.clientWidth;
+      this.libraryResizeObserver.observe(results);
+    }
+
+    if (sentinel) {
+      this.renderObserver = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          this.queueAppendBatch();
+        }
+      }, {
+        root: null,
+        rootMargin: '0px 0px 200px',
+      });
+      this.renderObserver.observe(sentinel);
+    }
+
+    this.resetIncrementalRendering();
+  }
+
+  private observedLibraryWidth = 0;
+
+  private resetIncrementalRendering() {
+    this.pendingRenderTarget = undefined;
+    this.pendingRenderComplete = undefined;
+    this.renderedItemLimit.set(this.getInitialRenderCount());
+    requestAnimationFrame(() => this.appendIfSentinelIsNearViewport());
+  }
+
+  private getInitialRenderCount(): number {
+    return Math.min(
+      this.totalRenderableItems(),
+      this.getViewportItemCount(this.initialViewportHeights),
+    );
+  }
+
+  private getAppendBatchSize(): number {
+    return this.getViewportItemCount(this.appendViewportHeights);
+  }
+
+  private getViewportItemCount(viewportHeights: number): number {
+    const viewportHeight = window.innerHeight || 800;
+
+    if (this.viewMode === 'tile') {
+      const width = this.libraryResultsRef?.nativeElement.clientWidth
+        || Math.max(190, window.innerWidth - 40);
+      const columns = Math.max(1, Math.floor((width + 16) / (190 + 16)));
+      const rows = Math.ceil((viewportHeight * viewportHeights) / 400);
+      return rows * columns;
+    }
+
+    return Math.ceil((viewportHeight * viewportHeights) / 260);
+  }
+
+  private queueAppendBatch() {
+    if (!this.hasMoreItems() || this.appendFrame !== undefined) return;
+
+    this.appendFrame = requestAnimationFrame(() => {
+      this.appendFrame = undefined;
+      this.appendRenderBatch();
+    });
+  }
+
+  private appendRenderBatch() {
+    const total = this.totalRenderableItems();
+    const current = this.renderedItemLimit();
+    const requested = this.pendingRenderTarget ?? current + this.getAppendBatchSize();
+    const target = Math.min(
+      total,
+      current + this.getAppendBatchSize(),
+      requested,
+    );
+
+    if (target > current) {
+      this.renderedItemLimit.set(target);
+    }
+
+    if (this.pendingRenderTarget && target < this.pendingRenderTarget) {
+      this.queueAppendBatch();
+      return;
+    }
+
+    const complete = this.pendingRenderComplete;
+    this.pendingRenderTarget = undefined;
+    this.pendingRenderComplete = undefined;
+    if (complete) {
+      requestAnimationFrame(complete);
+    } else {
+      requestAnimationFrame(() => this.appendIfSentinelIsNearViewport());
+    }
+  }
+
+  private appendIfSentinelIsNearViewport() {
+    const sentinel = this.renderSentinelRef?.nativeElement;
+    if (!sentinel || !this.hasMoreItems()) return;
+
+    if (sentinel.getBoundingClientRect().top <= window.innerHeight + 200) {
+      this.queueAppendBatch();
+    }
+  }
+
+  private ensureBookRendered(bookId: string, complete: () => void): boolean {
+    const target = this.getBookRenderIndex(bookId);
+    if (target === undefined) return false;
+
+    if (target <= this.renderedItemLimit()) {
+      complete();
+      return true;
+    }
+
+    this.pendingRenderTarget = target;
+    this.pendingRenderComplete = complete;
+    this.queueAppendBatch();
+    return true;
+  }
+
+  private getBookRenderIndex(bookId: string): number | undefined {
+    if (this.sortMode() !== 'byDirectory') {
+      const index = this.displayBooks().findIndex(book => book.id === bookId);
+      return index < 0 ? undefined : index + 1;
+    }
+
+    const index = this.directoryRenderEntries().findIndex(entry =>
+      entry.type === 'book' && entry.book.id === bookId
+    );
+    return index < 0 ? undefined : index + 1;
   }
 
   async ngOnInit() {
@@ -141,15 +317,16 @@ export class LibraryComponent implements OnInit, OnDestroy {
     const list = await this.loadBooks();
     this.books.set(this.enrichBooks(list));
 
+    const saved = localStorage.getItem(this.LS_SORT);
+    if (saved) {
+      this.sortMode.set(saved as SortMode);
+    }
+
     this.restoreLibraryState();
 
     void this.scanFoldersFacade.loadFolders();
 
     await this.generatePreviews(list);
-    const saved = localStorage.getItem(this.LS_SORT);
-    if (saved) {
-      this.sortMode.set(saved as SortMode);
-    }
   }
 
   async loadBooks(): Promise<Book[]> {
@@ -385,6 +562,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
   setViewMode(mode: LibraryViewMode) {
     this.viewMode = mode;
     localStorage.setItem(this.LS_VIEW_MODE, mode);
+    this.resetIncrementalRendering();
   }
 
   toggleViewMode() {
@@ -620,6 +798,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
     });
   }
 
+  toggleShowHidden() {
+    this.showHidden.update(value => !value);
+  }
+
   isGroupCollapsed(title: string): boolean {
     return this.collapsedGroups().has(title);
   }
@@ -668,6 +850,63 @@ export class LibraryComponent implements OnInit, OnDestroy {
     });
   });
 
+  readonly displayBooks = computed(() =>
+    this.sortedBooks().filter(book => !book.hidden || this.showHidden())
+  );
+
+  readonly directoryRenderEntries = computed<DirectoryRenderEntry[]>(() => {
+    const entries: DirectoryRenderEntry[] = [];
+
+    for (const group of this.directoryGroups()) {
+      const key = `${group.scanFolder.id}::${group.title}`;
+      entries.push({ type: 'header', key, group });
+
+      if (this.isGroupCollapsed(group.title)) continue;
+
+      for (const book of group.books) {
+        if (book.hidden && !this.showHidden()) continue;
+        entries.push({
+          type: 'book',
+          key: `${key}::${book.id}`,
+          groupKey: key,
+          book,
+        });
+      }
+    }
+
+    return entries;
+  });
+
+  readonly renderedBooks = computed(() =>
+    this.displayBooks().slice(0, this.renderedItemLimit())
+  );
+
+  readonly renderedDirectoryGroups = computed<RenderedDirectoryGroup[]>(() => {
+    const groups = new Map<string, RenderedDirectoryGroup>();
+
+    for (const entry of this.directoryRenderEntries().slice(0, this.renderedItemLimit())) {
+      if (entry.type === 'header') {
+        groups.set(entry.key, { group: entry.group, books: [] });
+        continue;
+      }
+
+      const group = groups.get(entry.groupKey);
+      if (group) group.books.push(entry.book);
+    }
+
+    return [...groups.values()];
+  });
+
+  readonly totalRenderableItems = computed(() =>
+    this.sortMode() === 'byDirectory'
+      ? this.directoryRenderEntries().length
+      : this.displayBooks().length
+  );
+
+  readonly hasMoreItems = computed(() =>
+    this.renderedItemLimit() < this.totalRenderableItems()
+  );
+
   restoreSearchQuery(){
     const savedSearch = sessionStorage.getItem(this.LS_LIBRARY_SEARCH);
 
@@ -680,7 +919,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
   scrollToPreviousPosition(){
     const id = sessionStorage.getItem('djvu.library.lastBookId');
 
-    setTimeout(() => {
+    const restore = () => {
       const el = id
         ? document.querySelector(`[data-book-id="${CSS.escape(id)}"]`)
         : null;
@@ -692,7 +931,11 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
       const y = Number(sessionStorage.getItem('djvu.library.scrollY') || 0);
       window.scrollTo({ top: y });
-    });
+    };
+
+    if (id && this.ensureBookRendered(id, restore)) return;
+
+    setTimeout(restore);
   }
 
   private restoreLibraryState() {
@@ -935,6 +1178,11 @@ export class LibraryComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.removeOpenFileListener?.();
     this.removeOpenFilesListener?.();
+    this.renderObserver?.disconnect();
+    this.libraryResizeObserver?.disconnect();
+    if (this.appendFrame !== undefined) {
+      cancelAnimationFrame(this.appendFrame);
+    }
   }
 
 }
