@@ -13,9 +13,15 @@ export interface RenderedPage {
   blob: Blob;
 }
 
+export interface PageDimensions {
+  width: number;
+  height: number;
+}
+
 export interface ReaderDocument {
   readonly pageCount: number;
 
+  getPageDimensions(pageNumber: number): Promise<PageDimensions>;
   renderPage(pageNumber: number, options?: RenderOptions): Promise<RenderedPage>;
   destroy(): void | Promise<void>;
 }

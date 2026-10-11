@@ -56,12 +56,15 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     void this.goToPage(index);
   }
 
+  getLoadedPage(index: number) {
+    return this.state.allPages.find(page => page.index === index);
+  }
+
   scrollToPage(index: number, smooth = true) {
-    console.log('scrollToPage index ', index);
     const container = this.pagesRef?.nativeElement;
     if (!container) return;
 
-    const el = container.querySelector<HTMLImageElement>(
+    const el = container.querySelector<HTMLElement>(
       `[data-index="${index}"]`
     );
     if (!el) return;
@@ -105,14 +108,14 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     void this.tabsService.ensureThumbnailLoaded(this.tabId, p);
 
-    await this.tabsService.ensurePageWindowLoaded(
+    this.scrollToPage(p);
+    this.scrollToActiveThumbnail(p);
+
+    void this.tabsService.ensurePageWindowLoaded(
       this.tabId,
       p,
       1
     );
-
-    this.scrollToPage(p);
-    this.scrollToActiveThumbnail(p);
   }
 
   goFirstPage() {
@@ -177,34 +180,34 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     const container = this.pagesRef?.nativeElement;
     if (!container) return;
 
-    const imgs = Array.from(container.querySelectorAll<HTMLImageElement>('.page-img'));
-    if (!imgs.length) return;
+    const pages = Array.from(container.querySelectorAll<HTMLElement>('.page-slot'));
+    if (!pages.length) return;
 
     const contRect = container.getBoundingClientRect();
     const viewportCenter = contRect.top + contRect.height / 2;
 
     let bestIndex = this.normalizePage(this.state.currentPage);
     let bestDist = Infinity;
-    let bestImg: HTMLImageElement | null = null;
+    let bestPage: HTMLElement | null = null;
 
-    for (const img of imgs) {
-      const rect = img.getBoundingClientRect();
+    for (const page of pages) {
+      const rect = page.getBoundingClientRect();
       const pageCenter = rect.top + rect.height / 2;
       const d = Math.abs(viewportCenter - pageCenter);
 
-      const idx = Number(img.dataset['index']);
+      const idx = Number(page.dataset['index']);
       if (!Number.isFinite(idx)) continue;
 
       if (d < bestDist) {
         bestDist = d;
         bestIndex = idx;
-        bestImg = img;
+        bestPage = page;
       }
     }
 
-    if (bestImg) {
+    if (bestPage) {
       const contRect = container.getBoundingClientRect();
-      const pageRect = bestImg.getBoundingClientRect();
+      const pageRect = bestPage.getBoundingClientRect();
 
       const offset = contRect.top - pageRect.top;
 
@@ -233,11 +236,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     const p = this.normalizePage(this.state.currentPage);
 
     const container = this.pagesRef?.nativeElement;
-    const el = container?.querySelector<HTMLImageElement>(
-      `[data-index="${p}"]`
-    );
-
-    if (!this.state || !this.state.allPages.length) return;
+    if (!this.state || !this.state.pages.length) return;
 
     this.suppressScrollDetect = true;
     this.state.currentPage = p;
@@ -274,10 +273,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
         this.state = state;
       });
 
-    if (!this.state.allPages.length) return;
+    if (!this.state.pages.length) return;
 
-    if (this.state.allPages.length !== this.prevPageCount) {
-      this.prevPageCount = this.state.allPages.length;
+    if (this.state.pages.length !== this.prevPageCount) {
+      this.prevPageCount = this.state.pages.length;
 
       queueMicrotask(() => {
         const p = this.normalizePage(this.state.currentPage);
@@ -352,7 +351,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   async restoreReadingPosition(offsetRatio: number, smooth = false) {
-    if (!this.state || !this.state.allPages.length) return;
+    if (!this.state || !this.state.pages.length) return;
 
     this.suppressScrollDetect = true;
 
@@ -366,7 +365,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       return;
     }
 
-    const el = container.querySelector<HTMLImageElement>(
+    const el = container.querySelector<HTMLElement>(
       `[data-index="${p}"]`
     );
 

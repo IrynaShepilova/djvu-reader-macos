@@ -167,6 +167,9 @@ export class TabsService {
 
       state.currentPage = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
 
+      await this.loadPageDimensions(tabId);
+      this.emitState(tabId);
+
       await this.loadInitialPages(tabId, 2);
       await this.loadInitialThumbnails(tabId, 5);
 
@@ -186,9 +189,6 @@ export class TabsService {
 
   private revokeStateUrls(state: TabState) {
     for (const p of state.allPages ?? []) {
-      try { URL.revokeObjectURL(p.url); } catch {}
-    }
-    for (const p of state.pages ?? []) {
       try { URL.revokeObjectURL(p.url); } catch {}
     }
     for (const t of state.thumbs ?? []) {
@@ -265,6 +265,30 @@ export class TabsService {
     }
 
     await this.loadPagesByIndexes(tabId, indexes);
+  }
+
+  private async loadPageDimensions(tabId: string): Promise<void> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return;
+
+    const document = state.document;
+    const pages: { index: number; width: number; height: number }[] = [];
+
+    for (let page = 1; page <= state.totalPages; page++) {
+      if (this.tabStates.get(tabId)?.document !== document) return;
+
+      const dimensions = await document.getPageDimensions(page);
+
+      if (this.tabStates.get(tabId)?.document !== document) return;
+
+      pages.push({
+        index: page,
+        width: dimensions.width,
+        height: dimensions.height,
+      });
+    }
+
+    state.pages = pages;
   }
 
   private async loadInitialThumbnails(tabId: string, radius = 5): Promise<void> {

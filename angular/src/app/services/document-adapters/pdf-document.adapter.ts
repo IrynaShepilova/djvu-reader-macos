@@ -1,5 +1,5 @@
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { DocumentAdapter, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
+import { DocumentAdapter, PageDimensions, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
 import { bookLoadErrorFromResponse } from '../../classes/book-load-error';
 
 GlobalWorkerOptions.workerSrc = new URL('assets/pdf.worker.min.mjs', document.baseURI).toString();
@@ -25,6 +25,16 @@ class PdfReaderDocument implements ReaderDocument {
 
   constructor(private readonly document: PDFDocumentProxy) {
     this.pageCount = document.numPages;
+  }
+
+  async getPageDimensions(pageNumber: number): Promise<PageDimensions> {
+    const page = await this.document.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 4 });
+
+    return {
+      width: Math.max(1, Math.round(viewport.width)),
+      height: Math.max(1, Math.round(viewport.height)),
+    };
   }
 
   async renderPage(pageNumber: number, options: RenderOptions = {}): Promise<RenderedPage> {

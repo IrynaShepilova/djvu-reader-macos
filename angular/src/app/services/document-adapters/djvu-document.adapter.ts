@@ -1,4 +1,4 @@
-import { DocumentAdapter, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
+import { DocumentAdapter, PageDimensions, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
 import { bookLoadErrorFromResponse } from '../../classes/book-load-error';
 
 declare const DjVu: any;
@@ -23,6 +23,17 @@ class DjvuReaderDocument implements ReaderDocument {
 
   constructor(private readonly document: any) {
     this.pageCount = getPageCount(document);
+  }
+
+  async getPageDimensions(pageNumber: number): Promise<PageDimensions> {
+    const page = await this.document.getPage(pageNumber);
+    const width = page.getWidth();
+    const height = page.getHeight();
+    const rotation = page.getRotation?.() ?? 0;
+
+    return rotation === 90 || rotation === 270
+      ? { width: height, height: width }
+      : { width, height };
   }
 
   async renderPage(pageNumber: number, options: RenderOptions = {}): Promise<RenderedPage> {
