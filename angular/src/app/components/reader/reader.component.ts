@@ -167,10 +167,9 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.scrollToPage(p);
     this.scrollToActiveThumbnail(p);
 
-    void this.tabsService.ensurePageWindowLoaded(
+    void this.tabsService.ensurePagesLoaded(
       this.tabId,
-      p,
-      1
+      this.getPageIndexesForRow(this.pageRows.get(p)),
     );
   }
 
@@ -567,6 +566,40 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
       this.renderedSinglePageLayouts = [];
       this.renderedSpreadLayouts = this.spreadLayouts.slice(nextStart, nextEnd);
     }
+
+    this.updatePageCacheWindow(nextStart, nextEnd);
+  }
+
+  private updatePageCacheWindow(start: number, end: number): void {
+    const rows = this.layoutMode === 'single'
+      ? this.singlePageLayouts
+      : this.spreadLayouts;
+    const bufferedStart = Math.max(0, start - 1);
+    const bufferedEnd = Math.min(rows.length, end + 1);
+    const indexes: number[] = [];
+
+    for (let row = bufferedStart; row < bufferedEnd; row++) {
+      indexes.push(...this.getPageIndexesForRow(row));
+    }
+
+    this.tabsService.updatePageCacheWindow(this.tabId, indexes);
+  }
+
+  private getPageIndexesForRow(row: number | undefined): number[] {
+    if (row === undefined) return [];
+
+    if (this.layoutMode === 'single') {
+      const layout = this.singlePageLayouts[row];
+      return layout ? [layout.page.index] : [];
+    }
+
+    const spread = this.spreadLayouts[row];
+    if (!spread) return [];
+
+    return [
+      spread.leftPage?.page.index,
+      spread.rightPage?.page.index,
+    ].filter((page): page is number => page !== undefined);
   }
 
   private findFirstVisibleRow(position: number): number {

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import {BehaviorSubject, defer} from 'rxjs';
+import {BehaviorSubject} from 'rxjs';
 import { Tab } from '../interfaces/tab';
 import { Book } from '../interfaces/book';
 import {ReadingPosition, TabState} from '../interfaces/tabState';
@@ -7,6 +7,22 @@ import {environment} from '../../environments/environment';
 import { Router } from '@angular/router';
 import { ReadingHistory } from '../classes/reading-history';
 import { DocumentService } from './document.service';
+
+interface PageRenderRequest {
+  page: number;
+  resolve: (loaded: boolean) => void;
+  promise: Promise<boolean>;
+}
+
+interface PageCacheController {
+  desiredPages: Set<number>;
+  pinnedPages: Set<number>;
+  queue: PageRenderRequest[];
+  pending: Map<number, PageRenderRequest>;
+  processing: boolean;
+  generation: number;
+  pruneTimer?: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class TabsService {
@@ -37,6 +53,7 @@ export class TabsService {
 
   private readonly loadVersions = new Map<string, number>();
   private readonly thumbnailLoadingPages = new Map<string, Set<number>>();
+  private readonly pageCacheControllers = new Map<string, PageCacheController>();
 
   private tabHistories = new Map<string, ReadingHistory>();
 
@@ -51,6 +68,9 @@ export class TabsService {
   openBook(book: Book): string {
     const existing = this.tabs.find(t => t.book.url === book.url);
     if (existing) {
+      if (this.activeTabId !== existing.id) {
+        this.pausePageCache(this.activeTabId);
+      }
       this.activeTabIdSubject.next(existing.id);
       this.markBookOpened(existing.book);
       return existing.id;
@@ -65,6 +85,7 @@ export class TabsService {
 
     this.tabStates.set(id, this.createEmptyState(id, book.url));
     this.tabsSubject.next([...this.tabs, newTab]);
+    this.pausePageCache(this.activeTabId);
     this.activeTabIdSubject.next(id);
 
     this.markBookOpened(newTab.book);
@@ -73,6 +94,7 @@ export class TabsService {
   }
 
   closeTab(id: string) {
+    this.invalidatePageCache(id);
     const st = this.tabStates.get(id);
     if (st) {
       this.revokeStateUrls(st);
@@ -104,7 +126,10 @@ export class TabsService {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
 
-    this.activeTabIdSubject.next(id);
+    if (this.activeTabId !== id) {
+      this.pausePageCache(this.activeTabId);
+      this.activeTabIdSubject.next(id);
+    }
     this.markBookOpened(tab.book);
   }
 
@@ -134,7 +159,7 @@ export class TabsService {
 
     if (state.loading) return;
 
-    if (!forceReload && state.allPages.length > 0 && state.document) return;
+    if (!forceReload && state.pages.length > 0 && state.document) return;
 
     state.loading = true;
     state.loadingProgress = 0;
@@ -142,6 +167,7 @@ export class TabsService {
     state.loadingDone = false;
 
     if (forceReload) {
+      this.invalidatePageCache(tabId);
       this.revokeStateUrls(state);
       const document = state.document;
       state.document = undefined;
@@ -170,13 +196,12 @@ export class TabsService {
       await this.loadPageDimensions(tabId);
       this.emitState(tabId);
 
-      await this.loadInitialPages(tabId, 2);
+      await this.loadInitialPages(tabId);
       await this.loadInitialThumbnails(tabId, 5);
 
       state.loadingDone = true;
       this.emitState(tabId);
 
-      void this.loadRemainingPagesInBackground(tabId, 10, loadVersion);
       void this.loadRemainingThumbnailsInBackground(tabId, 5, loadVersion);
 
     } catch (err) {
@@ -199,72 +224,12 @@ export class TabsService {
   }
 
 
-  async loadAllPages(tabId: string, batchSize = 10): Promise<void> {
-    const state = this.tabStates.get(tabId);
-    if (!state || !state.document) return;
-
-    const document = state.document;
-    const total = state.totalPages;
-    let i = 1;
-
-    return new Promise<void>((resolve) => {
-      const loadBatch = async () => {
-        const batch = [];
-
-        for (let p = i; p < i + batchSize && p <= total; p++) {
-          try {
-            const page = await document.renderPage(p);
-            const url = URL.createObjectURL(page.blob);
-
-            batch.push({
-              index: p,
-              url,
-              width: page.width,
-              height: page.height,
-            });
-
-          } catch (err) {
-            console.warn(`Error loading page ${p}:`, err);
-          }
-        }
-
-        state.allPages.push(...batch);
-
-        const loadedCount = Math.min(i + batchSize - 1, total);
-        state.loadingProgress = Math.round((loadedCount / total) * 100);
-        this.emitState(tabId);
-
-        i += batchSize;
-
-        if (i <= total) {
-          if ('requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(loadBatch);
-          } else {
-            setTimeout(loadBatch, 0);
-          }
-        } else {
-          resolve();
-        }
-      };
-
-      loadBatch();
-    });
-  }
-
-  private async loadInitialPages(tabId: string, radius = 2): Promise<void> {
+  private async loadInitialPages(tabId: string): Promise<void> {
     const state = this.tabStates.get(tabId);
     if (!state) return;
 
     const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
-    const indexes: number[] = [];
-
-    indexes.push(current);
-
-    for (let offset = 1; offset <= radius; offset++) {
-      indexes.push(current - offset, current + offset);
-    }
-
-    await this.loadPagesByIndexes(tabId, indexes);
+    await this.loadPagesByIndexes(tabId, [current], true);
   }
 
   private async loadPageDimensions(tabId: string): Promise<void> {
@@ -305,134 +270,265 @@ export class TabsService {
     await this.loadThumbnailsByIndexes(tabId, indexes);
   }
 
-  private async loadRemainingPagesInBackground(
+  private async loadPagesByIndexes(
     tabId: string,
-    batchSize = 10,
-    loadVersion: number,
+    indexes: number[],
+    pinPages = false,
   ): Promise<void> {
-    const state = this.tabStates.get(tabId);
-
-    if (
-      !state ||
-      !state.document ||
-      this.loadVersions.get(tabId) !== loadVersion
-    ) {
-      return;
-    }
-
-    const current = Math.max(
-      1,
-      Math.min(state.currentPage || 1, state.totalPages)
-    );
-
-    const ordered = this.buildRemainingPageOrder(
-      current,
-      state.totalPages
-    );
-
-    let cursor = 0;
-
-    return new Promise<void>((resolve) => {
-      const loadBatch = async () => {
-        const freshState = this.tabStates.get(tabId);
-
-        if (
-          !freshState ||
-          !freshState.document ||
-          this.loadVersions.get(tabId) !== loadVersion
-        ) {
-          resolve();
-          return;
-        }
-
-        const alreadyLoaded = new Set(
-          freshState.allPages.map(page => page.index)
-        );
-
-        const batch: number[] = [];
-
-        while (
-          cursor < ordered.length &&
-          batch.length < batchSize
-          ) {
-          const page = ordered[cursor++];
-
-          if (!alreadyLoaded.has(page)) {
-            batch.push(page);
-          }
-        }
-
-        if (batch.length > 0) {
-          await this.loadPagesByIndexes(tabId, batch);
-        }
-
-        if (this.loadVersions.get(tabId) !== loadVersion) {
-          resolve();
-          return;
-        }
-
-        if (cursor < ordered.length) {
-          if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(() => {
-              void loadBatch();
-            });
-          } else {
-            setTimeout(() => {
-              void loadBatch();
-            }, 0);
-          }
-        } else {
-          resolve();
-        }
-      };
-
-      void loadBatch();
-    });
+    await this.requestPages(tabId, indexes, pinPages);
   }
 
-  private async loadPagesByIndexes(tabId: string, indexes: number[]): Promise<void> {
+  updatePageCacheWindow(tabId: string, pageIndexes: number[]): void {
     const state = this.tabStates.get(tabId);
     if (!state || !state.document) return;
 
-    const document = state.document;
-    const existingIndexes = new Set(state.allPages.map(p => p.index));
+    const controller = this.getPageCacheController(tabId);
+    controller.desiredPages = new Set(
+      this.normalizePageIndexes(state, pageIndexes),
+    );
 
-    for (const rawIndex of indexes) {
-      if (this.tabStates.get(tabId)?.document !== document) return;
+    if (this.containsAll(controller.desiredPages, controller.pinnedPages)) {
+      controller.pinnedPages.clear();
+    }
 
-      const p = Math.max(1, Math.min(rawIndex, state.totalPages));
+    this.schedulePageCachePrune(tabId);
+    void this.requestPages(tabId, [...controller.desiredPages]);
+  }
 
-      if (existingIndexes.has(p)) continue;
+  async ensurePagesLoaded(tabId: string, pageIndexes: number[]): Promise<void> {
+    await this.requestPages(tabId, pageIndexes, true);
+  }
 
-      try {
-        const page = await document.renderPage(p);
+  private getPageCacheController(tabId: string): PageCacheController {
+    let controller = this.pageCacheControllers.get(tabId);
 
-        if (this.tabStates.get(tabId)?.document !== document) return;
+    if (!controller) {
+      controller = {
+        desiredPages: new Set<number>(),
+        pinnedPages: new Set<number>(),
+        queue: [],
+        pending: new Map<number, PageRenderRequest>(),
+        processing: false,
+        generation: 0,
+      };
+      this.pageCacheControllers.set(tabId, controller);
+    }
 
-        const url = URL.createObjectURL(page.blob);
+    return controller;
+  }
 
-        if (state.allPages.some(existing => existing.index === p)) {
-          URL.revokeObjectURL(url);
+  private async requestPages(
+    tabId: string,
+    pageIndexes: number[],
+    pinPages = false,
+  ): Promise<boolean[]> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document || this.activeTabId !== tabId) return [];
+
+    const controller = this.getPageCacheController(tabId);
+    const indexes = this.normalizePageIndexes(state, pageIndexes);
+
+    if (pinPages) {
+      controller.pinnedPages = new Set(indexes);
+      this.schedulePageCachePrune(tabId);
+    }
+
+    const requests = indexes.map(page => this.enqueuePageRender(tabId, page));
+    this.startPageRenderQueue(tabId);
+
+    return Promise.all(requests);
+  }
+
+  private enqueuePageRender(tabId: string, page: number): Promise<boolean> {
+    const state = this.tabStates.get(tabId);
+    if (!state || state.allPages.some(entry => entry.index === page)) {
+      return Promise.resolve(true);
+    }
+
+    const controller = this.getPageCacheController(tabId);
+    const pending = controller.pending.get(page);
+    if (pending) return pending.promise;
+
+    let resolve!: (loaded: boolean) => void;
+    const promise = new Promise<boolean>(done => {
+      resolve = done;
+    });
+    const request: PageRenderRequest = { page, resolve, promise };
+
+    controller.pending.set(page, request);
+    controller.queue.unshift(request);
+    return promise;
+  }
+
+  private startPageRenderQueue(tabId: string): void {
+    const controller = this.getPageCacheController(tabId);
+    if (controller.processing) return;
+
+    controller.processing = true;
+    void this.processPageRenderQueue(tabId, controller);
+  }
+
+  private async processPageRenderQueue(
+    tabId: string,
+    controller: PageCacheController,
+  ): Promise<void> {
+    try {
+      while (controller.queue.length) {
+        const request = controller.queue.shift()!;
+        const generation = controller.generation;
+        const state = this.tabStates.get(tabId);
+        const document = state?.document;
+
+        if (
+          !state ||
+          !document ||
+          this.activeTabId !== tabId ||
+          !this.isPageWanted(controller, request.page)
+        ) {
+          if (controller.pending.get(request.page) === request) {
+            controller.pending.delete(request.page);
+          }
+          request.resolve(false);
           continue;
         }
 
-        state.allPages.push({
-          index: p,
-          url,
-          width: page.width,
-          height: page.height,
-        });
+        try {
+          const rendered = await document.renderPage(request.page);
+          const currentState = this.tabStates.get(tabId);
 
-        existingIndexes.add(p);
-        state.allPages.sort((a, b) => a.index - b.index);
+          if (
+            currentState !== state ||
+            currentState.document !== document ||
+            controller.generation !== generation ||
+            this.activeTabId !== tabId ||
+            !this.isPageWanted(controller, request.page)
+          ) {
+            request.resolve(false);
+            continue;
+          }
 
-        state.loadingProgress = Math.round((state.allPages.length / state.totalPages) * 100);
-        this.emitState(tabId);
-      } catch (err) {
-        if (this.tabStates.get(tabId)?.document !== document) return;
-        console.warn(`Error loading page ${p}:`, err);
+          if (currentState.allPages.some(entry => entry.index === request.page)) {
+            request.resolve(true);
+            continue;
+          }
+
+          const url = URL.createObjectURL(rendered.blob);
+          if (!this.isPageWanted(controller, request.page)) {
+            URL.revokeObjectURL(url);
+            request.resolve(false);
+            continue;
+          }
+
+          currentState.allPages.push({
+            index: request.page,
+            url,
+            width: rendered.width,
+            height: rendered.height,
+          });
+          currentState.allPages.sort((a, b) => a.index - b.index);
+          currentState.loadingProgress = Math.round(
+            (currentState.allPages.length / currentState.totalPages) * 100,
+          );
+          this.emitState(tabId);
+          request.resolve(true);
+        } catch (err) {
+          if (controller.generation === generation) {
+            console.warn(`Error loading page ${request.page}:`, err);
+          }
+          request.resolve(false);
+        } finally {
+          if (controller.pending.get(request.page) === request) {
+            controller.pending.delete(request.page);
+          }
+        }
+      }
+    } finally {
+      controller.processing = false;
+      if (controller.queue.length) {
+        this.startPageRenderQueue(tabId);
       }
     }
+  }
+
+  private normalizePageIndexes(state: TabState, pageIndexes: number[]): number[] {
+    const indexes = new Set<number>();
+
+    for (const page of pageIndexes) {
+      const normalized = Math.max(1, Math.min(Math.floor(page), state.totalPages));
+      if (Number.isFinite(normalized)) indexes.add(normalized);
+    }
+
+    return [...indexes];
+  }
+
+  private isPageWanted(controller: PageCacheController, page: number): boolean {
+    return controller.desiredPages.has(page) || controller.pinnedPages.has(page);
+  }
+
+  private containsAll(container: Set<number>, values: Set<number>): boolean {
+    for (const value of values) {
+      if (!container.has(value)) return false;
+    }
+    return true;
+  }
+
+  private schedulePageCachePrune(tabId: string): void {
+    const controller = this.getPageCacheController(tabId);
+    if (controller.pruneTimer !== undefined) return;
+
+    controller.pruneTimer = window.setTimeout(() => {
+      controller.pruneTimer = undefined;
+      const state = this.tabStates.get(tabId);
+      if (!state) return;
+
+      const retained = new Set([
+        ...controller.desiredPages,
+        ...controller.pinnedPages,
+      ]);
+      const evicted = state.allPages.filter(page => !retained.has(page.index));
+      if (!evicted.length) return;
+
+      for (const page of evicted) {
+        try { URL.revokeObjectURL(page.url); } catch {}
+      }
+      state.allPages = state.allPages.filter(page => retained.has(page.index));
+      console.log(
+        'Page cache:',
+        tabId,
+        'cached:', state.allPages.length,
+        'pages:', state.allPages.map(p => p.index)
+      );
+      this.emitState(tabId);
+    }, 0);
+  }
+
+  private pausePageCache(tabId: string | null): void {
+    if (!tabId) return;
+    this.cancelPageRenderRequests(tabId, false);
+  }
+
+  private invalidatePageCache(tabId: string): void {
+    this.cancelPageRenderRequests(tabId, true);
+    this.pageCacheControllers.delete(tabId);
+  }
+
+  private cancelPageRenderRequests(tabId: string, clearDesiredPages: boolean): void {
+    const controller = this.pageCacheControllers.get(tabId);
+    if (!controller) return;
+
+    controller.generation++;
+    if (controller.pruneTimer !== undefined) {
+      clearTimeout(controller.pruneTimer);
+      controller.pruneTimer = undefined;
+    }
+
+    for (const request of controller.pending.values()) {
+      request.resolve(false);
+    }
+    controller.queue = [];
+    controller.pending.clear();
+    controller.pinnedPages.clear();
+    if (clearDesiredPages) controller.desiredPages.clear();
   }
 
   private async loadRemainingThumbnailsInBackground(
@@ -606,7 +702,7 @@ export class TabsService {
 
     if (exists) return true;
 
-    await this.loadPagesByIndexes(tabId, [p]);
+    await this.loadPagesByIndexes(tabId, [p], true);
 
     return state.allPages.some(page => page.index === p);
   }
@@ -621,7 +717,7 @@ export class TabsService {
       indexes.push(pageNumber + offset);
     }
 
-    await this.loadPagesByIndexes(tabId, indexes);
+    await this.loadPagesByIndexes(tabId, indexes, true);
   }
 
   getState(tabId: string): TabState | null {
@@ -769,6 +865,7 @@ export class TabsService {
   }
 
   setHomeActive() {
+    this.pausePageCache(this.activeTabId);
     this.activeTabIdSubject.next(null);
     this.persistTabs();
   }

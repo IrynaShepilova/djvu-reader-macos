@@ -1,5 +1,5 @@
 import {Component, EventEmitter, Input, Output, ChangeDetectionStrategy} from '@angular/core';
-import {DatePipe, JsonPipe} from '@angular/common';
+import {DatePipe} from '@angular/common';
 import {Book} from '../../interfaces/book';
 import {MatIcon, MatIconModule} from '@angular/material/icon';
 import {MatButtonModule} from '@angular/material/button';
@@ -10,7 +10,7 @@ import {LibraryViewMode} from '../library-toolbar/library-toolbar.component';
 @Component({
   selector: 'app-book-card',
   standalone: true,
-  imports: [DatePipe, MatIcon, MatMenu, MatMenuTrigger, JsonPipe],
+  imports: [DatePipe, MatIcon, MatMenu, MatMenuTrigger],
   templateUrl: './book-card.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './book-card.component.scss',
