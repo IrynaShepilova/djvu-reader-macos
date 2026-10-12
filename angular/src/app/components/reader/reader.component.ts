@@ -66,7 +66,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   private readonly apiBase = environment.apiBase;
   private prevPageCount = 0;
+  private thumbnailPages?: TabState['pages'];
   private prevTabCurrentPage = 0;
+  private layoutPages?: TabState['pages'];
+  private layoutModeForGeometry?: ReaderLayoutMode;
+  private fitModeForGeometry?: ReaderFitMode;
+  private zoomForGeometry?: number;
   stateSub?: Subscription;
   suppressScrollDetect = false;
 
@@ -89,11 +94,26 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   private viewportObserver?: ResizeObserver;
   private viewportFrame?: number;
   private virtualScrollFrame?: number;
+  private thumbnailScrollFrame?: number;
   private layoutAnchorRenderRef?: AfterRenderRef;
   private pendingLayoutAnchor?: ReadingPosition;
   private pendingReadingRestore?: { position: ReadingPosition; smooth: boolean };
   private readingRestoreFrame?: number;
   private callbackVersion = 0;
+
+  renderedThumbnails: TabState['thumbs'] = [];
+  thumbnailTopSpacerHeight = 0;
+  thumbnailBottomSpacerHeight = 0;
+  private readonly thumbnailWidth = 150;
+  private readonly thumbnailBorder = 2;
+  private readonly thumbnailGap = 8;
+  private readonly thumbnailInitialRenderCount = 12;
+  private readonly thumbnailOverscanViewports = 1;
+  private thumbnailTops: number[] = [];
+  private thumbnailHeights: number[] = [];
+  private thumbnailTotalHeight = 0;
+  private renderedThumbnailStart = 0;
+  private renderedThumbnailEnd = 0;
 
   readonly zoomStep = 0.1;
   readonly zoomMin = 0.3;
@@ -121,6 +141,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   getLoadedPage(index: number) {
     return this.state.allPages.find(page => page.index === index);
+  }
+
+  getThumbnailPlaceholderHeight(index: number): number {
+    return Math.max(0, (this.thumbnailHeights[index - 1] ?? 0) - this.thumbnailBorder);
   }
 
   scrollToPage(index: number, smooth = true) {
@@ -206,18 +230,22 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   scrollToActiveThumbnail(index: number, smooth: boolean = true) {
     const cont = this.thumbsContainerRef?.nativeElement;
-    if (!cont) return;
+    if (!cont || !this.thumbnailTops.length) return;
 
-    const el = cont.querySelector(`[data-index="${index}"]`);
-    if (el) {
-      const contRect = cont.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const targetScrollTop = cont.scrollTop + (elRect.top - contRect.top);
-      cont.scrollTo({
-        top: targetScrollTop,
-        behavior: smooth ? 'smooth' : 'auto',
-      });
-    }
+    const row = Math.max(0, Math.min(index - 1, this.thumbnailTops.length - 1));
+    const top = this.thumbnailTops[row];
+    const bottom = this.getThumbnailEnd(row);
+    const visibleTop = cont.scrollTop;
+    const visibleBottom = visibleTop + cont.clientHeight;
+
+    if (top >= visibleTop && bottom <= visibleBottom) return;
+
+    const targetScrollTop = top;
+    cont.scrollTo({
+      top: targetScrollTop,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+    this.scheduleThumbnailWindowUpdate();
   }
 
   ngAfterViewInit() {
@@ -226,9 +254,13 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     this.viewportObserver = new ResizeObserver(() => {
       this.scheduleViewportMeasurement();
+      this.scheduleThumbnailWindowUpdate();
     });
     this.viewportObserver.observe(container);
+    this.viewportObserver.observe(this.thumbsContainerRef.nativeElement);
+    this.thumbsContainerRef.nativeElement.addEventListener('scroll', this.onThumbnailScroll);
     this.scheduleViewportMeasurement();
+    this.scheduleThumbnailWindowUpdate();
   }
 
   onScroll = () => {
@@ -236,6 +268,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     if (!this.suppressScrollDetect) {
       this.detectCurrentPageOnScroll();
     }
+  };
+
+  onThumbnailScroll = () => {
+    this.scheduleThumbnailWindowUpdate();
   };
 
   detectCurrentPageOnScroll() {
@@ -280,7 +316,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     if (changes['tabId']) {
       this.cancelPendingLayoutCallbacks();
       this.prevPageCount = 0;
+      this.thumbnailPages = undefined;
       this.prevTabCurrentPage = 0;
+      this.layoutPages = undefined;
+      this.layoutModeForGeometry = undefined;
+      this.fitModeForGeometry = undefined;
+      this.zoomForGeometry = undefined;
       this.suppressScrollDetect = true;
       this.stateSub?.unsubscribe();
 
@@ -307,10 +348,11 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     if (container) {
       container.removeEventListener('scroll', this.onScroll);
     }
+    this.thumbsContainerRef?.nativeElement.removeEventListener('scroll', this.onThumbnailScroll);
   }
 
   private normalizePage(page: number | null | undefined): number {
-    let p = Number(page);
+    let p = Math.floor(Number(page));
 
     if (!Number.isFinite(p) || p < 1) {
       p = 1;
@@ -369,8 +411,24 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   private updateState(state: TabState) {
+    const layoutChanged =
+      this.layoutPages !== state.pages ||
+      this.layoutModeForGeometry !== state.layoutMode ||
+      this.fitModeForGeometry !== state.fitMode ||
+      this.zoomForGeometry !== state.zoom;
+
     this.state = state;
-    this.rebuildSinglePageLayouts();
+    if (layoutChanged) {
+      this.layoutPages = state.pages;
+      this.layoutModeForGeometry = state.layoutMode;
+      this.fitModeForGeometry = state.fitMode;
+      this.zoomForGeometry = state.zoom;
+      this.rebuildSinglePageLayouts();
+    }
+    if (this.thumbnailPages !== this.state.pages) {
+      this.thumbnailPages = this.state.pages;
+      this.rebuildThumbnailGeometry();
+    }
     this.handleStateUpdate();
   }
 
@@ -602,6 +660,121 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     ].filter((page): page is number => page !== undefined);
   }
 
+  private rebuildThumbnailGeometry(): void {
+    this.thumbnailTops = [];
+    this.thumbnailHeights = [];
+    let top = 0;
+
+    for (const page of this.state.pages) {
+      const height = this.getThumbnailHeight(page);
+      this.thumbnailTops.push(top);
+      this.thumbnailHeights.push(height);
+      top += height;
+      if (page.index < this.state.pages.length) top += this.thumbnailGap;
+    }
+
+    this.thumbnailTotalHeight = top;
+    this.renderedThumbnailStart = 0;
+    this.renderedThumbnailEnd = 0;
+    this.updateThumbnailWindow(true);
+  }
+
+  private getThumbnailHeight(page: PageMetadata): number {
+    return this.thumbnailWidth * (page.height / page.width) + this.thumbnailBorder;
+  }
+
+  private scheduleThumbnailWindowUpdate(): void {
+    if (this.thumbnailScrollFrame !== undefined) return;
+
+    const callbackVersion = this.callbackVersion;
+    const tabId = this.tabId;
+    this.thumbnailScrollFrame = requestAnimationFrame(() => {
+      this.thumbnailScrollFrame = undefined;
+      if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
+      this.updateThumbnailWindow();
+    });
+  }
+
+  private updateThumbnailWindow(force = false): void {
+    const container = this.thumbsContainerRef?.nativeElement;
+    const count = this.state?.thumbs.length ?? 0;
+
+    if (!count) {
+      this.setRenderedThumbnails(0, 0, force);
+      return;
+    }
+
+    if (!container) {
+      const current = Math.max(0, Math.min(this.state.currentPage - 1, count - 1));
+      this.setRenderedThumbnails(
+        Math.max(0, current - this.thumbnailInitialRenderCount / 2),
+        Math.min(count, current + this.thumbnailInitialRenderCount / 2),
+        force,
+      );
+      return;
+    }
+
+    const overscan = container.clientHeight * this.thumbnailOverscanViewports;
+    const start = this.findFirstThumbnailAt(container.scrollTop - overscan);
+    const end = this.findFirstThumbnailAfter(
+      container.scrollTop + container.clientHeight + overscan,
+    );
+
+    this.setRenderedThumbnails(start, Math.max(start + 1, end), force);
+  }
+
+  private setRenderedThumbnails(start: number, end: number, force: boolean): void {
+    const count = this.state?.thumbs.length ?? 0;
+    const nextStart = Math.max(0, Math.min(Math.floor(start), count));
+    const nextEnd = Math.max(nextStart, Math.min(Math.ceil(end), count));
+
+    if (
+      !force &&
+      nextStart === this.renderedThumbnailStart &&
+      nextEnd === this.renderedThumbnailEnd
+    ) {
+      return;
+    }
+
+    this.renderedThumbnailStart = nextStart;
+    this.renderedThumbnailEnd = nextEnd;
+    this.thumbnailTopSpacerHeight = nextStart > 0
+      ? this.thumbnailTops[nextStart] - this.thumbnailGap
+      : 0;
+    this.thumbnailBottomSpacerHeight = nextEnd < count
+      ? this.thumbnailTotalHeight - this.getThumbnailEnd(nextEnd - 1) - this.thumbnailGap
+      : 0;
+    this.renderedThumbnails = this.state.thumbs.slice(nextStart, nextEnd);
+
+    const cacheStart = Math.max(0, nextStart - 1);
+    const cacheEnd = Math.min(count, nextEnd + 1);
+    this.tabsService.updateThumbnailCacheWindow(
+      this.tabId,
+      this.state.thumbs.slice(cacheStart, cacheEnd).map(thumb => thumb.index),
+    );
+  }
+
+  private findFirstThumbnailAt(position: number): number {
+    return Math.max(0, this.findFirstThumbnailAfter(position) - 1);
+  }
+
+  private findFirstThumbnailAfter(position: number): number {
+    let low = 0;
+    let high = this.thumbnailTops.length;
+
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (this.thumbnailTops[middle] <= position) low = middle + 1;
+      else high = middle;
+    }
+
+    return low;
+  }
+
+  private getThumbnailEnd(row: number): number {
+    return this.thumbnailTops[row] + this.thumbnailHeights[row];
+  }
+
   private findFirstVisibleRow(position: number): number {
     return Math.max(0, this.findFirstRowAfter(position) - 1);
   }
@@ -799,11 +972,6 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     if (this.state.currentPage !== this.prevTabCurrentPage) {
       this.prevTabCurrentPage = this.normalizePage(this.state.currentPage);
-
-      queueMicrotask(() => {
-        if (callbackVersion !== this.callbackVersion || tabId !== this.tabId) return;
-        this.scrollToActiveThumbnail(this.state.currentPage);
-      });
     }
   }
 
@@ -1051,6 +1219,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     if (this.virtualScrollFrame !== undefined) {
       cancelAnimationFrame(this.virtualScrollFrame);
       this.virtualScrollFrame = undefined;
+    }
+    if (this.thumbnailScrollFrame !== undefined) {
+      cancelAnimationFrame(this.thumbnailScrollFrame);
+      this.thumbnailScrollFrame = undefined;
     }
     if (this.layoutAnchorRenderRef) {
       this.layoutAnchorRenderRef.destroy();

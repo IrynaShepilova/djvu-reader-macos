@@ -24,6 +24,22 @@ interface PageCacheController {
   pruneTimer?: number;
 }
 
+interface ThumbnailRenderRequest {
+  page: number;
+  resolve: (loaded: boolean) => void;
+  promise: Promise<boolean>;
+}
+
+interface ThumbnailCacheController {
+  desiredPages: Set<number>;
+  pinnedPages: Set<number>;
+  queue: ThumbnailRenderRequest[];
+  pending: Map<number, ThumbnailRenderRequest>;
+  processing: boolean;
+  generation: number;
+  pruneTimer?: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TabsService {
 
@@ -51,9 +67,8 @@ export class TabsService {
   private readonly LS_PAGE_PREFIX = 'djvu.lastPageByBookUrl.v1:'; // key = prefix + book.url
   private readonly LS_READING_POSITION_PREFIX = 'djvu.positionByBookUrl.v1:';
 
-  private readonly loadVersions = new Map<string, number>();
-  private readonly thumbnailLoadingPages = new Map<string, Set<number>>();
   private readonly pageCacheControllers = new Map<string, PageCacheController>();
+  private readonly thumbnailCacheControllers = new Map<string, ThumbnailCacheController>();
 
   private tabHistories = new Map<string, ReadingHistory>();
 
@@ -70,6 +85,7 @@ export class TabsService {
     if (existing) {
       if (this.activeTabId !== existing.id) {
         this.pausePageCache(this.activeTabId);
+        this.pauseThumbnailCache(this.activeTabId);
       }
       this.activeTabIdSubject.next(existing.id);
       this.markBookOpened(existing.book);
@@ -86,6 +102,7 @@ export class TabsService {
     this.tabStates.set(id, this.createEmptyState(id, book.url));
     this.tabsSubject.next([...this.tabs, newTab]);
     this.pausePageCache(this.activeTabId);
+    this.pauseThumbnailCache(this.activeTabId);
     this.activeTabIdSubject.next(id);
 
     this.markBookOpened(newTab.book);
@@ -95,6 +112,7 @@ export class TabsService {
 
   closeTab(id: string) {
     this.invalidatePageCache(id);
+    this.invalidateThumbnailCache(id);
     const st = this.tabStates.get(id);
     if (st) {
       this.revokeStateUrls(st);
@@ -104,7 +122,6 @@ export class TabsService {
       st.allPages = [];
       st.pages = [];
       st.thumbs = [];
-      this.thumbnailLoadingPages.delete(id);
     }
 
     const remaining = this.tabs.filter(t => t.id !== id);
@@ -128,6 +145,7 @@ export class TabsService {
 
     if (this.activeTabId !== id) {
       this.pausePageCache(this.activeTabId);
+      this.pauseThumbnailCache(this.activeTabId);
       this.activeTabIdSubject.next(id);
     }
     this.markBookOpened(tab.book);
@@ -151,9 +169,6 @@ export class TabsService {
     const tab = this.tabs.find(t => t.id === tabId);
     if (!tab) return;
 
-    const loadVersion = (this.loadVersions.get(tabId) ?? 0) + 1;
-    this.loadVersions.set(tabId, loadVersion);
-
     const state = this.ensureTabState(tabId);
     if (!state) return;
 
@@ -168,6 +183,7 @@ export class TabsService {
 
     if (forceReload) {
       this.invalidatePageCache(tabId);
+      this.invalidateThumbnailCache(tabId);
       this.revokeStateUrls(state);
       const document = state.document;
       state.document = undefined;
@@ -175,7 +191,6 @@ export class TabsService {
       state.allPages = [];
       state.pages = [];
       state.thumbs = [];
-      this.thumbnailLoadingPages.delete(tabId);
       state.totalPages = 0;
     }
 
@@ -197,12 +212,10 @@ export class TabsService {
       this.emitState(tabId);
 
       await this.loadInitialPages(tabId);
-      await this.loadInitialThumbnails(tabId, 5);
+      await this.loadInitialThumbnails(tabId);
 
       state.loadingDone = true;
       this.emitState(tabId);
-
-      void this.loadRemainingThumbnailsInBackground(tabId, 5, loadVersion);
 
     } catch (err) {
       console.error('Book load failed:', err);
@@ -256,18 +269,12 @@ export class TabsService {
     state.pages = pages;
   }
 
-  private async loadInitialThumbnails(tabId: string, radius = 5): Promise<void> {
+  private async loadInitialThumbnails(tabId: string): Promise<void> {
     const state = this.tabStates.get(tabId);
     if (!state) return;
 
     const current = Math.max(1, Math.min(state.currentPage || 1, state.totalPages));
-    const indexes: number[] = [current];
-
-    for (let offset = 1; offset <= radius; offset++) {
-      indexes.push(current - offset, current + offset);
-    }
-
-    await this.loadThumbnailsByIndexes(tabId, indexes);
+    await this.requestThumbnails(tabId, [current], true);
   }
 
   private async loadPagesByIndexes(
@@ -492,12 +499,6 @@ export class TabsService {
         try { URL.revokeObjectURL(page.url); } catch {}
       }
       state.allPages = state.allPages.filter(page => retained.has(page.index));
-      console.log(
-        'Page cache:',
-        tabId,
-        'cached:', state.allPages.length,
-        'pages:', state.allPages.map(p => p.index)
-      );
       this.emitState(tabId);
     }, 0);
   }
@@ -531,166 +532,227 @@ export class TabsService {
     if (clearDesiredPages) controller.desiredPages.clear();
   }
 
-  private async loadRemainingThumbnailsInBackground(
-    tabId: string,
-    batchSize: number,
-    loadVersion: number,
-  ): Promise<void> {
+  updateThumbnailCacheWindow(tabId: string, pageIndexes: number[]): void {
     const state = this.tabStates.get(tabId);
+    if (!state || !state.document) return;
 
-    if (
-      !state ||
-      !state.document ||
-      this.loadVersions.get(tabId) !== loadVersion
-    ) {
-      return;
+    const controller = this.getThumbnailCacheController(tabId);
+    controller.desiredPages = new Set(this.normalizePageIndexes(state, pageIndexes));
+
+    if (this.containsAll(controller.desiredPages, controller.pinnedPages)) {
+      controller.pinnedPages.clear();
     }
 
-    const ordered = this.buildRemainingPageOrder(state.currentPage, state.totalPages);
-    let cursor = 0;
-
-    return new Promise<void>((resolve) => {
-      const loadBatch = async () => {
-        const freshState = this.tabStates.get(tabId);
-
-        if (
-          !freshState ||
-          !freshState.document ||
-          this.loadVersions.get(tabId) !== loadVersion
-        ) {
-          resolve();
-          return;
-        }
-
-        const batch: number[] = [];
-
-        while (cursor < ordered.length && batch.length < batchSize) {
-          const page = ordered[cursor++];
-          const thumb = freshState.thumbs[page - 1];
-
-          if (thumb && !thumb.url) {
-            batch.push(page);
-          }
-        }
-
-        if (batch.length > 0) {
-          const thumbnailsLoaded = await this.loadThumbnailsByIndexes(tabId, batch);
-
-          if (thumbnailsLoaded) {
-            this.emitState(tabId);
-          }
-        }
-
-        if (this.loadVersions.get(tabId) !== loadVersion) {
-          resolve();
-          return;
-        }
-
-        if (cursor < ordered.length) {
-          if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(() => {
-              void loadBatch();
-            });
-          } else {
-            setTimeout(() => {
-              void loadBatch();
-            }, 0);
-          }
-        } else {
-          resolve();
-        }
-      };
-
-      void loadBatch();
-    });
-  }
-
-  private async loadThumbnailsByIndexes(tabId: string, indexes: number[]): Promise<boolean> {
-    const state = this.tabStates.get(tabId);
-    if (!state || !state.document) return false;
-
-    const document = state.document;
-    const loadingPages = this.getThumbnailLoadingPages(tabId);
-    let thumbnailsLoaded = false;
-
-    for (const rawIndex of indexes) {
-      if (this.tabStates.get(tabId)?.document !== document) return false;
-
-      const page = Math.max(1, Math.min(rawIndex, state.totalPages));
-      const thumb = state.thumbs[page - 1];
-
-      if (!thumb || thumb.url || loadingPages.has(page)) continue;
-
-      loadingPages.add(page);
-
-      try {
-        const rendered = await document.renderPage(page, {
-          targetWidth: 300,
-          quality: 1,
-        });
-
-        if (this.tabStates.get(tabId)?.document !== document) return false;
-
-        const url = URL.createObjectURL(rendered.blob);
-        const currentThumb = state.thumbs[page - 1];
-
-        if (!currentThumb || currentThumb.url) {
-          URL.revokeObjectURL(url);
-          continue;
-        }
-
-        currentThumb.url = url;
-        currentThumb.width = rendered.width;
-        currentThumb.height = rendered.height;
-        thumbnailsLoaded = true;
-      } catch (err) {
-        if (this.tabStates.get(tabId)?.document !== document) return false;
-        console.warn(`Error loading thumbnail ${page}:`, err);
-      } finally {
-        loadingPages.delete(page);
-      }
-    }
-
-    return thumbnailsLoaded;
+    this.scheduleThumbnailCachePrune(tabId);
+    void this.requestThumbnails(tabId, [...controller.desiredPages]);
   }
 
   async ensureThumbnailLoaded(tabId: string, pageNumber: number): Promise<void> {
-    const thumbnailLoaded = await this.loadThumbnailsByIndexes(tabId, [pageNumber]);
+    await this.requestThumbnails(tabId, [pageNumber], true);
+  }
 
-    if (thumbnailLoaded) {
-      this.emitState(tabId);
+  private getThumbnailCacheController(tabId: string): ThumbnailCacheController {
+    let controller = this.thumbnailCacheControllers.get(tabId);
+
+    if (!controller) {
+      controller = {
+        desiredPages: new Set<number>(),
+        pinnedPages: new Set<number>(),
+        queue: [],
+        pending: new Map<number, ThumbnailRenderRequest>(),
+        processing: false,
+        generation: 0,
+      };
+      this.thumbnailCacheControllers.set(tabId, controller);
+    }
+
+    return controller;
+  }
+
+  private async requestThumbnails(
+    tabId: string,
+    pageIndexes: number[],
+    pinPages = false,
+  ): Promise<boolean[]> {
+    const state = this.tabStates.get(tabId);
+    if (!state || !state.document || this.activeTabId !== tabId) return [];
+
+    const controller = this.getThumbnailCacheController(tabId);
+    const indexes = this.normalizePageIndexes(state, pageIndexes);
+
+    if (pinPages) {
+      controller.pinnedPages = new Set(indexes);
+      this.scheduleThumbnailCachePrune(tabId);
+    }
+
+    const requests = indexes.map(page => this.enqueueThumbnailRender(tabId, page));
+    this.startThumbnailRenderQueue(tabId);
+    return Promise.all(requests);
+  }
+
+  private enqueueThumbnailRender(tabId: string, page: number): Promise<boolean> {
+    const state = this.tabStates.get(tabId);
+    const thumb = state?.thumbs[page - 1];
+    if (!thumb || thumb.url) return Promise.resolve(true);
+
+    const controller = this.getThumbnailCacheController(tabId);
+    const pending = controller.pending.get(page);
+    if (pending) return pending.promise;
+
+    let resolve!: (loaded: boolean) => void;
+    const promise = new Promise<boolean>(done => {
+      resolve = done;
+    });
+    const request: ThumbnailRenderRequest = { page, resolve, promise };
+    controller.pending.set(page, request);
+    controller.queue.unshift(request);
+    return promise;
+  }
+
+  private startThumbnailRenderQueue(tabId: string): void {
+    const controller = this.getThumbnailCacheController(tabId);
+    if (controller.processing) return;
+
+    controller.processing = true;
+    void this.processThumbnailRenderQueue(tabId, controller);
+  }
+
+  private async processThumbnailRenderQueue(
+    tabId: string,
+    controller: ThumbnailCacheController,
+  ): Promise<void> {
+    try {
+      while (controller.queue.length) {
+        const request = controller.queue.shift()!;
+        const generation = controller.generation;
+        const state = this.tabStates.get(tabId);
+        const document = state?.document;
+
+        if (
+          !state ||
+          !document ||
+          this.activeTabId !== tabId ||
+          !this.isThumbnailWanted(controller, request.page)
+        ) {
+          if (controller.pending.get(request.page) === request) {
+            controller.pending.delete(request.page);
+          }
+          request.resolve(false);
+          continue;
+        }
+
+        try {
+          const rendered = await document.renderPage(request.page, {
+            targetWidth: 300,
+            quality: 1,
+          });
+          const currentState = this.tabStates.get(tabId);
+
+          if (
+            currentState !== state ||
+            currentState.document !== document ||
+            controller.generation !== generation ||
+            this.activeTabId !== tabId ||
+            !this.isThumbnailWanted(controller, request.page)
+          ) {
+            request.resolve(false);
+            continue;
+          }
+
+          const currentThumb = currentState.thumbs[request.page - 1];
+          if (!currentThumb || currentThumb.url) {
+            request.resolve(Boolean(currentThumb?.url));
+            continue;
+          }
+
+          const url = URL.createObjectURL(rendered.blob);
+          if (!this.isThumbnailWanted(controller, request.page)) {
+            URL.revokeObjectURL(url);
+            request.resolve(false);
+            continue;
+          }
+
+          currentThumb.url = url;
+          currentThumb.width = rendered.width;
+          currentThumb.height = rendered.height;
+          this.emitState(tabId);
+          request.resolve(true);
+        } catch (err) {
+          if (controller.generation === generation) {
+            console.warn(`Error loading thumbnail ${request.page}:`, err);
+          }
+          request.resolve(false);
+        } finally {
+          if (controller.pending.get(request.page) === request) {
+            controller.pending.delete(request.page);
+          }
+        }
+      }
+    } finally {
+      controller.processing = false;
+      if (controller.queue.length) {
+        this.startThumbnailRenderQueue(tabId);
+      }
     }
   }
 
-  private getThumbnailLoadingPages(tabId: string): Set<number> {
-    let pages = this.thumbnailLoadingPages.get(tabId);
-
-    if (!pages) {
-      pages = new Set<number>();
-      this.thumbnailLoadingPages.set(tabId, pages);
-    }
-
-    return pages;
+  private isThumbnailWanted(controller: ThumbnailCacheController, page: number): boolean {
+    return controller.desiredPages.has(page) || controller.pinnedPages.has(page);
   }
 
-  private buildRemainingPageOrder(current: number, total: number): number[] {
-    const result: number[] = [];
-    const seen = new Set<number>();
+  private scheduleThumbnailCachePrune(tabId: string): void {
+    const controller = this.getThumbnailCacheController(tabId);
+    if (controller.pruneTimer !== undefined) return;
 
-    const push = (page: number) => {
-      if (page < 1 || page > total || seen.has(page)) return;
-      seen.add(page);
-      result.push(page);
-    };
+    controller.pruneTimer = window.setTimeout(() => {
+      controller.pruneTimer = undefined;
+      const state = this.tabStates.get(tabId);
+      if (!state) return;
 
-    push(current);
+      const retained = new Set([
+        ...controller.desiredPages,
+        ...controller.pinnedPages,
+      ]);
+      let changed = false;
 
-    for (let offset = 1; offset <= total; offset++) {
-      push(current - offset);
-      push(current + offset);
+      for (const thumb of state.thumbs) {
+        if (!thumb.url || retained.has(thumb.index)) continue;
+        try { URL.revokeObjectURL(thumb.url); } catch {}
+        thumb.url = null;
+        changed = true;
+      }
+
+      if (changed) this.emitState(tabId);
+    }, 0);
+  }
+
+  private pauseThumbnailCache(tabId: string | null): void {
+    if (!tabId) return;
+    this.cancelThumbnailRenderRequests(tabId, false);
+  }
+
+  private invalidateThumbnailCache(tabId: string): void {
+    this.cancelThumbnailRenderRequests(tabId, true);
+    this.thumbnailCacheControllers.delete(tabId);
+  }
+
+  private cancelThumbnailRenderRequests(tabId: string, clearDesiredPages: boolean): void {
+    const controller = this.thumbnailCacheControllers.get(tabId);
+    if (!controller) return;
+
+    controller.generation++;
+    if (controller.pruneTimer !== undefined) {
+      clearTimeout(controller.pruneTimer);
+      controller.pruneTimer = undefined;
     }
 
-    return result;
+    for (const request of controller.pending.values()) {
+      request.resolve(false);
+    }
+    controller.queue = [];
+    controller.pending.clear();
+    controller.pinnedPages.clear();
+    if (clearDesiredPages) controller.desiredPages.clear();
   }
 
   async ensurePageLoaded(tabId: string, pageNumber: number): Promise<boolean> {
@@ -866,6 +928,7 @@ export class TabsService {
 
   setHomeActive() {
     this.pausePageCache(this.activeTabId);
+    this.pauseThumbnailCache(this.activeTabId);
     this.activeTabIdSubject.next(null);
     this.persistTabs();
   }

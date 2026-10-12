@@ -248,7 +248,10 @@
     </div>
 
     <div class="thumbnails" #thumbsContainer>
-      @for (p of state.thumbs; track p.index) {
+      @if (thumbnailTopSpacerHeight > 0) {
+        <div class="thumbnail-spacer" [style.height.px]="thumbnailTopSpacerHeight"></div>
+      }
+      @for (p of renderedThumbnails; track p.index) {
         <span
           class="thumb"
           [class.active]="state.currentPage === p.index"
@@ -264,9 +267,15 @@
               [alt]="'Page ' + p.index"
             />
           } @else {
-            <span class="thumb-placeholder">{{ p.index }}</span>
+            <span
+              class="thumb-placeholder"
+              [style.height.px]="getThumbnailPlaceholderHeight(p.index)"
+            >{{ p.index }}</span>
           }
         </span>
+      }
+      @if (thumbnailBottomSpacerHeight > 0) {
+        <div class="thumbnail-spacer" [style.height.px]="thumbnailBottomSpacerHeight"></div>
       }
     </div>
   </div>
