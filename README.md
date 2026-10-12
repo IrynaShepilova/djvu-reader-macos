@@ -22,6 +22,8 @@ A lightweight DJVU reader built with Angular, Node.js, and Electron.
 - 🔎 Library search
 - 📄 PDF support
 - 🧩 Unified document abstraction for DJVU and PDF
+- 📄 Virtualized page rendering and thumbnail sidebar with lazy loading and bounded caching
+- ⚡ Reduced memory usage and improved reader performance
 
 ## Tech stack
 
@@ -72,7 +74,6 @@ Books remain linked to their original files on disk. Missing files can be detect
 
 - 🔖Bookmarks
 - 📝Notes
-- 🚀 More efficient rendering for large documents
 - 🏷️ Extended tags and categories
 - 🌍 Internationalization
 - 🤖 AI-assisted study tools
