@@ -8,8 +8,8 @@
     flex: 1;
     display: flex;
     overflow: hidden;
-    gap: 1rem;
-    padding: 1rem;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
     box-sizing: border-box;
 
     .pages {
@@ -20,7 +20,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1.5rem;
+      gap: 1rem;
 
       .virtual-spacer {
         width: 1px;
@@ -102,21 +102,39 @@
         z-index: 1;
         overflow: auto;
         background: #f7f7f7;
+        border: 1px solid #ddd;
+        border-radius: 5px;
         scrollbar-width: thin;
         scrollbar-color: #aaa transparent;
         visibility: hidden;
+        opacity: 0;
         pointer-events: none;
+        transform: translateX(10px);
+        transition:
+          opacity 200ms ease,
+          transform 200ms ease,
+          visibility 0s linear 200ms;
 
         &.visible {
           visibility: visible;
+          opacity: 1;
           pointer-events: auto;
+          transform: translateX(0);
+          transition:
+            opacity 200ms ease,
+            transform 200ms ease,
+            visibility 0s linear;
         }
       }
     }
 
+    .reader-sidebar:has(.outline-panel[aria-hidden="false"]) {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+
     .thumbnails {
       height: 100%;
-      width: 160px;
+      width: 164px;
       overflow-y: auto;
       overflow-x: hidden;
       display: flex;
@@ -168,6 +186,13 @@
         }
 
       }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .content .reader-sidebar .outline-panel {
+      transition: none;
+      transform: none;
     }
   }
   .toolbar {

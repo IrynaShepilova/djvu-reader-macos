@@ -15,6 +15,7 @@ interface VisibleOutlineItem {
 })
 export class DocumentOutlineComponent implements OnChanges, OnDestroy {
   @Input() readerDocument?: ReaderDocument;
+  @Input() active = false;
   @Output() internalLink = new EventEmitter<InternalLinkTarget>();
 
   loading = false;
@@ -26,7 +27,12 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
   private destinationController?: AbortController;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['readerDocument']) {
+    if (!this.active) {
+      if (changes['readerDocument']) this.resetOutline();
+      return;
+    }
+
+    if (changes['readerDocument'] || changes['active']) {
       void this.loadOutline();
     }
   }
@@ -109,6 +115,16 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
         this.loading = false;
       }
     }
+  }
+
+  private resetOutline(): void {
+    this.loadVersion++;
+    this.destinationController?.abort();
+    this.expandedIds.clear();
+    this.loading = false;
+    this.error = false;
+    this.items = [];
+    this.visibleItems = [];
   }
 
   private rebuildVisibleItems(): void {

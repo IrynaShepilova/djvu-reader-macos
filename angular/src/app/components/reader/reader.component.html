@@ -356,12 +356,11 @@
         [attr.aria-hidden]="sidebarMode !== 'outline'"
         [attr.inert]="sidebarMode === 'outline' ? null : ''"
       >
-        @if (sidebarMode === 'outline') {
-          <app-document-outline
-            [readerDocument]="state.document"
-            (internalLink)="followInternalLink($event)"
-          />
-        }
+        <app-document-outline
+          [readerDocument]="state.document"
+          [active]="sidebarMode === 'outline'"
+          (internalLink)="followOutlineLink($event)"
+        />
       </div>
     </aside>
   </div>

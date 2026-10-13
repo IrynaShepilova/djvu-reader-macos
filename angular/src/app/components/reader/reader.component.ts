@@ -1196,6 +1196,11 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     await this.goToPosition(position, false);
   }
 
+  async followOutlineLink(target: InternalLinkTarget): Promise<void> {
+    await this.followInternalLink(target);
+    this.tabsService.updateReaderDisplay(this.tabId, { sidebarMode: 'thumbnails' });
+  }
+
   openExternalLink(url: string): void {
     const openExternalUrl = window.electronAPI?.openExternalUrl;
     if (!openExternalUrl) return;
