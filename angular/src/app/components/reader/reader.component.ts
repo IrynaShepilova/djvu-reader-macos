@@ -4,13 +4,14 @@ import {
   Input, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild,
 } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import {ReaderFitMode, ReaderLayoutMode, ReadingPosition, TabState} from '../../interfaces/tabState';
+import {ReaderFitMode, ReaderLayoutMode, ReaderSidebarMode, ReadingPosition, TabState} from '../../interfaces/tabState';
 import { InternalLinkTarget } from '../../interfaces/reader-document';
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
 import {Subscription} from 'rxjs';
 import { PdfTextLayerComponent } from '../pdf-text-layer/pdf-text-layer.component';
 import { DocumentLinkLayerComponent } from '../document-link-layer/document-link-layer.component';
+import { DocumentOutlineComponent } from '../document-outline/document-outline.component';
 type PageMetadata = TabState['pages'][number];
 
 interface SinglePageLayout {
@@ -51,6 +52,7 @@ interface PageGeometry {
     DecimalPipe,
     PdfTextLayerComponent,
     DocumentLinkLayerComponent,
+    DocumentOutlineComponent,
   ],
   templateUrl: './reader.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -138,6 +140,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   get textSelectionEnabled(): boolean {
     return this.state?.textSelectionEnabled ?? false;
+  }
+
+  get sidebarMode(): ReaderSidebarMode {
+    return this.state?.sidebarMode ?? 'thumbnails';
   }
 
   async ngOnInit() {
@@ -422,6 +428,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   toggleTextSelection() {
     this.tabsService.updateReaderDisplay(this.tabId, {
       textSelectionEnabled: !this.textSelectionEnabled,
+    });
+  }
+
+  toggleOutline(): void {
+    this.tabsService.updateReaderDisplay(this.tabId, {
+      sidebarMode: this.sidebarMode === 'outline' ? 'thumbnails' : 'outline',
     });
   }
 

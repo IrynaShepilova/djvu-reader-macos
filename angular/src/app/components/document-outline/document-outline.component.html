@@ -1,0 +1,35 @@
+@if (loading) {
+  <p class="outline-status">Loading outline…</p>
+} @else if (error) {
+  <p class="outline-status">Unable to load outline.</p>
+} @else if (!items.length) {
+  <p class="outline-status">No outline available.</p>
+} @else {
+  <div class="outline-tree" role="tree" aria-label="Document outline">
+    @for (row of visibleItems; track row.item.id) {
+      <div
+        class="outline-row"
+        role="treeitem"
+        [attr.aria-level]="row.depth + 1"
+        [attr.aria-expanded]="hasChildren(row.item) ? isExpanded(row.item) : null"
+        [style.--outline-depth]="row.depth"
+      >
+        @if (hasChildren(row.item)) {
+          <button
+            class="outline-expander"
+            type="button"
+            (click)="toggle(row.item)"
+            [attr.aria-label]="isExpanded(row.item) ? 'Collapse section' : 'Expand section'"
+          >{{ isExpanded(row.item) ? '▾' : '▸' }}</button>
+        } @else {
+          <span class="outline-expander-placeholder"></span>
+        }
+        @if (row.item.destinationId) {
+          <button class="outline-entry outline-link" type="button" (click)="activate(row.item)">{{ row.item.title }}</button>
+        } @else {
+          <span class="outline-entry outline-heading">{{ row.item.title }}</span>
+        }
+      </div>
+    }
+  </div>
+}

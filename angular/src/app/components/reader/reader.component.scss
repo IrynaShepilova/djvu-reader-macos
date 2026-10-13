@@ -89,8 +89,34 @@
     }
 
 
+    .reader-sidebar {
+      width: 164px;
+      flex: 0 0 164px;
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+
+      .outline-panel {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        overflow: auto;
+        background: #f7f7f7;
+        scrollbar-width: thin;
+        scrollbar-color: #aaa transparent;
+        visibility: hidden;
+        pointer-events: none;
+
+        &.visible {
+          visibility: visible;
+          pointer-events: auto;
+        }
+      }
+    }
+
     .thumbnails {
-      //width: 160px;
+      height: 100%;
+      width: 160px;
       overflow-y: auto;
       overflow-x: hidden;
       display: flex;

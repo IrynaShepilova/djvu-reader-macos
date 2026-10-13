@@ -7,6 +7,7 @@ import {
 } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import {
   DocumentAdapter,
+  DocumentOutlineItem,
   InternalLinkTarget,
   LinkLayerHandle,
   LinkLayerOptions,
@@ -23,6 +24,8 @@ GlobalWorkerOptions.workerSrc = new URL('assets/pdf.worker.min.mjs', document.ba
 
 const MAX_LINK_ANNOTATIONS = 1_000;
 const MAX_LINK_REGIONS = 2_000;
+const MAX_OUTLINE_ITEMS = 10_000;
+const MAX_OUTLINE_DEPTH = 64;
 
 export class PdfDocumentAdapter implements DocumentAdapter {
   readonly format = 'pdf' as const;
@@ -42,6 +45,9 @@ export class PdfDocumentAdapter implements DocumentAdapter {
 
 class PdfReaderDocument implements ReaderDocument {
   readonly pageCount: number;
+  private outlinePromise?: Promise<DocumentOutlineItem[]>;
+  private readonly outlineDestinations = new Map<string, unknown>();
+  private readonly resolvedOutlineDestinations = new Map<string, InternalLinkTarget | null>();
 
   constructor(private readonly document: PDFDocumentProxy) {
     this.pageCount = document.numPages;
@@ -228,6 +234,60 @@ class PdfReaderDocument implements ReaderDocument {
         layerContainer.remove();
       },
     };
+  }
+
+  loadOutline(): Promise<DocumentOutlineItem[]> {
+    if (!this.outlinePromise) {
+      this.outlinePromise = this.createOutline();
+    }
+    return this.outlinePromise;
+  }
+
+  async resolveOutlineDestination(
+    destinationId: string,
+    signal: AbortSignal,
+  ): Promise<InternalLinkTarget | null> {
+    if (this.resolvedOutlineDestinations.has(destinationId)) {
+      return this.resolvedOutlineDestinations.get(destinationId) ?? null;
+    }
+
+    const destination = this.outlineDestinations.get(destinationId);
+    if (destination === undefined || signal.aborted) return null;
+
+    const target = await this.resolveInternalDestination(destination, signal);
+    if (!signal.aborted) {
+      this.resolvedOutlineDestinations.set(destinationId, target);
+    }
+    return target;
+  }
+
+  private async createOutline(): Promise<DocumentOutlineItem[]> {
+    const outline = await this.document.getOutline();
+    if (!Array.isArray(outline)) return [];
+
+    let itemCount = 0;
+    const normalize = (items: unknown[], depth: number): DocumentOutlineItem[] => {
+      if (depth > MAX_OUTLINE_DEPTH || itemCount >= MAX_OUTLINE_ITEMS) return [];
+
+      const result: DocumentOutlineItem[] = [];
+      for (const source of items) {
+        if (!source || typeof source !== 'object' || itemCount >= MAX_OUTLINE_ITEMS) continue;
+        const raw = source as { title?: unknown; dest?: unknown; items?: unknown };
+        const id = `pdf-outline-${itemCount++}`;
+        const destinationId = hasInternalDestination(raw.dest) ? id : undefined;
+        if (destinationId) this.outlineDestinations.set(destinationId, raw.dest);
+
+        result.push({
+          id,
+          title: typeof raw.title === 'string' ? raw.title : '',
+          children: Array.isArray(raw.items) ? normalize(raw.items, depth + 1) : [],
+          ...(destinationId ? { destinationId } : {}),
+        });
+      }
+      return result;
+    };
+
+    return normalize(outline, 0);
   }
 
   private async followInternalDestination(destination: unknown, options: LinkLayerOptions): Promise<void> {

@@ -1,0 +1,63 @@
+:host {
+  display: block;
+  min-height: 0;
+}
+
+.outline-status {
+  margin: 12px 6px;
+  color: #666;
+  font-size: 13px;
+}
+
+.outline-tree {
+  padding: 4px 0;
+}
+
+.outline-row {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  padding-left: calc(var(--outline-depth) * 14px);
+}
+
+.outline-expander,
+.outline-expander-placeholder {
+  width: 20px;
+  min-width: 20px;
+  height: 24px;
+}
+
+.outline-expander {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: #555;
+}
+
+.outline-entry {
+  min-width: 0;
+  flex: 1;
+  padding: 4px 6px 4px 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.outline-link {
+  border: 0;
+  background: transparent;
+  color: #1d5ea8;
+  cursor: pointer;
+}
+
+.outline-link:hover,
+.outline-link:focus-visible {
+  text-decoration: underline;
+}
+
+.outline-heading {
+  color: #555;
+}

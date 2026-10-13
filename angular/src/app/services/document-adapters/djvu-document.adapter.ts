@@ -1,5 +1,7 @@
 import {
   DocumentAdapter,
+  DocumentOutlineItem,
+  InternalLinkTarget,
   PageDimensions,
   ReaderDocument,
   RenderedPage,
@@ -22,6 +24,8 @@ interface DjvuTextZone {
 interface PositionedTextZone extends DjvuTextZone {}
 
 const MAX_TEXT_ZONES = 50_000;
+const MAX_OUTLINE_ITEMS = 10_000;
+const MAX_OUTLINE_DEPTH = 64;
 
 export class DjvuDocumentAdapter implements DocumentAdapter {
   readonly format = 'djvu' as const;
@@ -40,6 +44,9 @@ export class DjvuDocumentAdapter implements DocumentAdapter {
 
 class DjvuReaderDocument implements ReaderDocument {
   readonly pageCount: number;
+  private outlinePromise?: Promise<DocumentOutlineItem[]>;
+  private readonly outlineUrls = new Map<string, string>();
+  private readonly resolvedOutlineDestinations = new Map<string, InternalLinkTarget | null>();
 
   constructor(private readonly document: any) {
     this.pageCount = getPageCount(document);
@@ -157,6 +164,72 @@ class DjvuReaderDocument implements ReaderDocument {
     };
   }
 
+  loadOutline(): Promise<DocumentOutlineItem[]> {
+    if (!this.outlinePromise) {
+      this.outlinePromise = Promise.resolve().then(() => this.createOutline());
+    }
+    return this.outlinePromise;
+  }
+
+  async resolveOutlineDestination(
+    destinationId: string,
+    signal: AbortSignal,
+  ): Promise<InternalLinkTarget | null> {
+    if (this.resolvedOutlineDestinations.has(destinationId)) {
+      return this.resolvedOutlineDestinations.get(destinationId) ?? null;
+    }
+
+    const url = this.outlineUrls.get(destinationId);
+    if (!url || signal.aborted || !isSupportedDjvuOutlineUrl(url)) return null;
+
+    let pageNumber: unknown;
+    try {
+      pageNumber = this.document.getPageNumberByUrl(url);
+    } catch {
+      return null;
+    }
+
+    const target = typeof pageNumber === 'number' && Number.isInteger(pageNumber) &&
+      pageNumber >= 1 && pageNumber <= this.pageCount
+      ? { page: pageNumber, offsetRatio: 0 }
+      : null;
+    if (!signal.aborted) {
+      this.resolvedOutlineDestinations.set(destinationId, target);
+    }
+    return target;
+  }
+
+  private createOutline(): DocumentOutlineItem[] {
+    const contents = this.document.getContents?.();
+    if (!Array.isArray(contents)) return [];
+
+    let itemCount = 0;
+    const normalize = (items: unknown[], depth: number): DocumentOutlineItem[] => {
+      if (depth > MAX_OUTLINE_DEPTH || itemCount >= MAX_OUTLINE_ITEMS) return [];
+
+      const result: DocumentOutlineItem[] = [];
+      for (const source of items) {
+        if (!source || typeof source !== 'object' || itemCount >= MAX_OUTLINE_ITEMS) continue;
+        const raw = source as { description?: unknown; url?: unknown; children?: unknown };
+        const id = `djvu-outline-${itemCount++}`;
+        const destinationId = typeof raw.url === 'string' && isSupportedDjvuOutlineUrl(raw.url)
+          ? id
+          : undefined;
+        if (destinationId) this.outlineUrls.set(destinationId, raw.url as string);
+
+        result.push({
+          id,
+          title: typeof raw.description === 'string' ? raw.description : '',
+          children: Array.isArray(raw.children) ? normalize(raw.children, depth + 1) : [],
+          ...(destinationId ? { destinationId } : {}),
+        });
+      }
+      return result;
+    };
+
+    return normalize(contents, 0);
+  }
+
   destroy(): void {}
 }
 
@@ -175,6 +248,10 @@ function isDjvuTextZone(value: unknown): value is DjvuTextZone {
 
 function isPositiveFinite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isSupportedDjvuOutlineUrl(url: string): boolean {
+  return url.length > 1 && url.startsWith('#') && !/^#[+-]\d+$/.test(url);
 }
 
 function rotateZone(

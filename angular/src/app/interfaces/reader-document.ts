@@ -33,6 +33,13 @@ export interface InternalLinkTarget {
   offsetRatio: number;
 }
 
+export interface DocumentOutlineItem {
+  id: string;
+  title: string;
+  children: DocumentOutlineItem[];
+  destinationId?: string;
+}
+
 export interface LinkLayerOptions {
   width: number;
   height: number;
@@ -60,6 +67,11 @@ export interface ReaderDocument {
     container: HTMLElement,
     options: LinkLayerOptions,
   ): Promise<LinkLayerHandle | null>;
+  loadOutline?(): Promise<DocumentOutlineItem[] | null>;
+  resolveOutlineDestination?(
+    destinationId: string,
+    signal: AbortSignal,
+  ): Promise<InternalLinkTarget | null>;
   destroy(): void | Promise<void>;
 }
 

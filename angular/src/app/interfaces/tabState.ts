@@ -2,6 +2,7 @@ import { ReaderDocument } from './reader-document';
 
 export type ReaderLayoutMode = 'single' | 'spread';
 export type ReaderFitMode = 'none' | 'width' | 'height';
+export type ReaderSidebarMode = 'thumbnails' | 'outline';
 
 export interface TabState {
   pages: { index: number; width: number; height: number }[];
@@ -12,6 +13,7 @@ export interface TabState {
   fitMode: ReaderFitMode;
   zoom: number;
   textSelectionEnabled: boolean;
+  sidebarMode: ReaderSidebarMode;
   totalPages: number;
   loadingProgress: number;
   loadingDone: boolean;
