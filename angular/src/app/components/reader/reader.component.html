@@ -359,6 +359,7 @@
         <app-document-outline
           [readerDocument]="state.document"
           [active]="sidebarMode === 'outline'"
+          [currentPage]="state.currentPage"
           (internalLink)="followOutlineLink($event)"
         />
       </div>

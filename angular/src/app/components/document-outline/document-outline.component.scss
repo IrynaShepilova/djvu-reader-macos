@@ -58,6 +58,11 @@
   text-decoration: underline;
 }
 
+.outline-link.active,
+.outline-heading.active {
+  color: #007bff;
+}
+
 .outline-heading {
   color: #555;
 }

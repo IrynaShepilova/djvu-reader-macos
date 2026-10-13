@@ -25,9 +25,9 @@
           <span class="outline-expander-placeholder"></span>
         }
         @if (row.item.destinationId) {
-          <button class="outline-entry outline-link" type="button" (click)="activate(row.item)">{{ row.item.title }}</button>
+          <button class="outline-entry outline-link" [class.active]="highlightedItemId === row.item.id" type="button" (click)="activate(row.item)">{{ row.item.title }}</button>
         } @else {
-          <span class="outline-entry outline-heading">{{ row.item.title }}</span>
+          <span class="outline-entry outline-heading" [class.active]="highlightedItemId === row.item.id">{{ row.item.title }}</span>
         }
       </div>
     }

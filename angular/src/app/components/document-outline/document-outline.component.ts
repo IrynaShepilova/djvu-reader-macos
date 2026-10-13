@@ -6,6 +6,8 @@ interface VisibleOutlineItem {
   depth: number;
 }
 
+const OUTLINE_DESTINATION_CONCURRENCY = 4;
+
 @Component({
   selector: 'app-document-outline',
   standalone: true,
@@ -16,6 +18,7 @@ interface VisibleOutlineItem {
 export class DocumentOutlineComponent implements OnChanges, OnDestroy {
   @Input() readerDocument?: ReaderDocument;
   @Input() active = false;
+  @Input() currentPage = 1;
   @Output() internalLink = new EventEmitter<InternalLinkTarget>();
 
   loading = false;
@@ -23,16 +26,28 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
   items: DocumentOutlineItem[] = [];
   visibleItems: VisibleOutlineItem[] = [];
   private readonly expandedIds = new Set<string>();
+  private readonly itemById = new Map<string, DocumentOutlineItem>();
+  private readonly itemIdByDestinationId = new Map<string, string>();
+  private readonly parentById = new Map<string, string>();
+  private readonly destinationPages = new Map<string, number>();
   private loadVersion = 0;
   private destinationController?: AbortController;
+  private pageResolutionController?: AbortController;
+  private loadedDocument?: ReaderDocument;
+  highlightedItemId?: string;
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['currentPage']) this.updateHighlight();
+
     if (!this.active) {
       if (changes['readerDocument']) this.resetOutline();
       return;
     }
 
-    if (changes['readerDocument'] || changes['active']) {
+    if (
+      (changes['readerDocument'] || changes['active']) &&
+      (this.loadedDocument !== this.readerDocument || !this.items.length)
+    ) {
       void this.loadOutline();
     }
   }
@@ -40,6 +55,7 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
   ngOnDestroy(): void {
     this.loadVersion++;
     this.destinationController?.abort();
+    this.pageResolutionController?.abort();
   }
 
   hasChildren(item: DocumentOutlineItem): boolean {
@@ -86,7 +102,14 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
     const document = this.readerDocument;
     const version = ++this.loadVersion;
     this.destinationController?.abort();
+    this.pageResolutionController?.abort();
     this.expandedIds.clear();
+    this.itemById.clear();
+    this.itemIdByDestinationId.clear();
+    this.parentById.clear();
+    this.destinationPages.clear();
+    this.loadedDocument = undefined;
+    this.highlightedItemId = undefined;
     this.items = [];
     this.visibleItems = [];
     this.error = false;
@@ -102,10 +125,13 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
       if (version !== this.loadVersion || document !== this.readerDocument) return;
 
       this.items = items ?? [];
+      this.loadedDocument = document;
+      this.indexOutlineItems(this.items);
       for (const item of this.items) {
         if (item.children.length) this.expandedIds.add(item.id);
       }
       this.rebuildVisibleItems();
+      void this.resolveDestinationPages(document, version);
     } catch (error) {
       if (version !== this.loadVersion || document !== this.readerDocument) return;
       this.error = true;
@@ -120,7 +146,14 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
   private resetOutline(): void {
     this.loadVersion++;
     this.destinationController?.abort();
+    this.pageResolutionController?.abort();
     this.expandedIds.clear();
+    this.itemById.clear();
+    this.itemIdByDestinationId.clear();
+    this.parentById.clear();
+    this.destinationPages.clear();
+    this.loadedDocument = undefined;
+    this.highlightedItemId = undefined;
     this.loading = false;
     this.error = false;
     this.items = [];
@@ -139,5 +172,82 @@ export class DocumentOutlineComponent implements OnChanges, OnDestroy {
     };
     visit(this.items, 0);
     this.visibleItems = visible;
+    this.updateHighlight();
+  }
+
+  private indexOutlineItems(items: DocumentOutlineItem[], parentId?: string): void {
+    for (const item of items) {
+      this.itemById.set(item.id, item);
+      if (item.destinationId) this.itemIdByDestinationId.set(item.destinationId, item.id);
+      if (parentId) this.parentById.set(item.id, parentId);
+      this.indexOutlineItems(item.children, item.id);
+    }
+  }
+
+  private async resolveDestinationPages(document: ReaderDocument, version: number): Promise<void> {
+    const resolveDestination = document.resolveOutlineDestination;
+    if (!resolveDestination) return;
+
+    this.pageResolutionController?.abort();
+    const controller = new AbortController();
+    this.pageResolutionController = controller;
+    const destinationIds = Array.from(this.itemById.values())
+      .map(item => item.destinationId)
+      .filter((id): id is string => Boolean(id));
+    let nextIndex = 0;
+
+    const resolveNext = async (): Promise<void> => {
+      while (!controller.signal.aborted) {
+        const destinationId = destinationIds[nextIndex++];
+        if (!destinationId) return;
+
+        try {
+          const target = await resolveDestination.call(document, destinationId, controller.signal);
+          if (
+            target &&
+            !controller.signal.aborted &&
+            version === this.loadVersion &&
+            document === this.readerDocument
+          ) {
+            this.destinationPages.set(destinationId, target.page);
+            this.updateHighlight();
+          }
+        } catch {
+          // Unsupported or malformed destinations are intentionally ignored.
+        }
+      }
+    };
+
+    await Promise.all(Array.from(
+      {length: Math.min(OUTLINE_DESTINATION_CONCURRENCY, destinationIds.length)},
+      () => resolveNext(),
+    ));
+  }
+
+  private updateHighlight(): void {
+    let activeId: string | undefined;
+    let activePage = -1;
+    for (const item of this.itemById.values()) {
+      const destinationId = item.destinationId;
+      if (!destinationId) continue;
+      const page = this.destinationPages.get(destinationId);
+      if (page === undefined) continue;
+      if (page <= this.currentPage && page >= activePage) {
+        activeId = destinationId;
+        activePage = page;
+      }
+    }
+
+    if (!activeId) {
+      this.highlightedItemId = undefined;
+      return;
+    }
+
+    const visibleIds = new Set(this.visibleItems.map(row => row.item.id));
+    let highlightedId = this.itemIdByDestinationId.get(activeId);
+    while (highlightedId && !visibleIds.has(highlightedId)) {
+      highlightedId = this.parentById.get(highlightedId);
+    }
+    this.highlightedItemId = highlightedId;
   }
 }
