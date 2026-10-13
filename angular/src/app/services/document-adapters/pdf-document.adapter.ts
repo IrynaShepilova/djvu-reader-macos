@@ -1,5 +1,18 @@
-import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { DocumentAdapter, PageDimensions, ReaderDocument, RenderedPage, RenderOptions } from '../../interfaces/reader-document';
+import {
+  getDocument,
+  GlobalWorkerOptions,
+  TextLayer,
+  type PDFDocumentProxy,
+} from 'pdfjs-dist/legacy/build/pdf.mjs';
+import {
+  DocumentAdapter,
+  PageDimensions,
+  ReaderDocument,
+  RenderedPage,
+  RenderOptions,
+  TextLayerHandle,
+  TextLayerOptions,
+} from '../../interfaces/reader-document';
 import { bookLoadErrorFromResponse } from '../../classes/book-load-error';
 
 GlobalWorkerOptions.workerSrc = new URL('assets/pdf.worker.min.mjs', document.baseURI).toString();
@@ -64,6 +77,64 @@ class PdfReaderDocument implements ReaderDocument {
       height: canvas.height,
       blob,
     };
+  }
+
+  async renderTextLayer(
+    pageNumber: number,
+    container: HTMLElement,
+    options: TextLayerOptions,
+  ): Promise<TextLayerHandle | null> {
+    const page = await this.document.getPage(pageNumber);
+    if (options.signal.aborted) return null;
+
+    const baseViewport = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: options.width / baseViewport.width });
+    const textContent = await page.getTextContent();
+
+    if (
+      options.signal.aborted ||
+      !textContent.items.some(item => 'str' in item && item.str.trim().length > 0)
+    ) {
+      return null;
+    }
+
+    const layerContainer = document.createElement('div');
+    layerContainer.className = 'pdf-text-layer-content';
+    layerContainer.style.setProperty('--total-scale-factor', String(viewport.scale));
+    container.append(layerContainer);
+
+    const textLayer = new TextLayer({
+      textContentSource: textContent,
+      container: layerContainer,
+      viewport,
+    });
+
+    let destroyed = false;
+    const destroy = () => {
+      if (destroyed) return;
+      destroyed = true;
+      textLayer.cancel();
+      layerContainer.remove();
+    };
+    const onAbort = () => destroy();
+
+    options.signal.addEventListener('abort', onAbort, { once: true });
+    try {
+      await textLayer.render();
+    } catch (error) {
+      destroy();
+      if (options.signal.aborted) return null;
+      throw error;
+    } finally {
+      options.signal.removeEventListener('abort', onAbort);
+    }
+
+    if (options.signal.aborted) {
+      destroy();
+      return null;
+    }
+
+    return { destroy };
   }
 
   destroy(): Promise<void> {

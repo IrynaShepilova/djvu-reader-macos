@@ -8,6 +8,7 @@ import {ReaderFitMode, ReaderLayoutMode, ReadingPosition, TabState} from '../../
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
 import {Subscription} from 'rxjs';
+import { PdfTextLayerComponent } from '../pdf-text-layer/pdf-text-layer.component';
 type PageMetadata = TabState['pages'][number];
 
 interface SinglePageLayout {
@@ -45,7 +46,8 @@ interface PageGeometry {
   selector: 'app-reader',
   standalone: true,
   imports: [
-    DecimalPipe
+    DecimalPipe,
+    PdfTextLayerComponent,
   ],
   templateUrl: './reader.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,

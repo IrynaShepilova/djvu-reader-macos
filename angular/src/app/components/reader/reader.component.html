@@ -178,6 +178,14 @@
               } @else {
                 <div class="page-placeholder"></div>
               }
+              @if (state.document; as document) {
+                <app-pdf-text-layer
+                  [readerDocument]="document"
+                  [pageNumber]="layout.page.index"
+                  [width]="layout.pageWidth"
+                  [height]="layout.pageHeight"
+                />
+              }
             </div>
           </div>
         }
@@ -214,6 +222,14 @@
                 } @else {
                   <div class="page-placeholder"></div>
                 }
+                @if (state.document; as document) {
+                  <app-pdf-text-layer
+                    [readerDocument]="document"
+                    [pageNumber]="left.page.index"
+                    [width]="left.width"
+                    [height]="left.height"
+                  />
+                }
               </div>
             }
 
@@ -236,6 +252,14 @@
                   />
                 } @else {
                   <div class="page-placeholder"></div>
+                }
+                @if (state.document; as document) {
+                  <app-pdf-text-layer
+                    [readerDocument]="document"
+                    [pageNumber]="right.page.index"
+                    [width]="right.width"
+                    [height]="right.height"
+                  />
                 }
               </div>
             }

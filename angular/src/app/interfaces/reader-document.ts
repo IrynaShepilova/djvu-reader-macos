@@ -18,11 +18,26 @@ export interface PageDimensions {
   height: number;
 }
 
+export interface TextLayerOptions {
+  width: number;
+  height: number;
+  signal: AbortSignal;
+}
+
+export interface TextLayerHandle {
+  destroy(): void;
+}
+
 export interface ReaderDocument {
   readonly pageCount: number;
 
   getPageDimensions(pageNumber: number): Promise<PageDimensions>;
   renderPage(pageNumber: number, options?: RenderOptions): Promise<RenderedPage>;
+  renderTextLayer?(
+    pageNumber: number,
+    container: HTMLElement,
+    options: TextLayerOptions,
+  ): Promise<TextLayerHandle | null>;
   destroy(): void | Promise<void>;
 }
 
