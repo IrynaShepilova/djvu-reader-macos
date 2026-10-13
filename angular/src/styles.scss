@@ -40,7 +40,7 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
 // PDF.js creates text spans dynamically, so these styles must be global rather than
 // component-scoped. The layer is positioned inside the reader's fixed-size page slot.
-.pdf-text-layer {
+.reader-text-layer {
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
@@ -56,7 +56,7 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   pointer-events: none;
 }
 
-.pdf-text-layer.has-text {
+.reader-text-layer.has-text {
   pointer-events: auto;
 }
 
@@ -70,7 +70,17 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   transform-origin: 0 0;
 }
 
-.pdf-text-layer :is(span, br) {
+.djvu-text-layer-content {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: inherit;
+  text-align: inherit;
+  text-size-adjust: inherit;
+  transform-origin: 0 0;
+}
+
+.pdf-text-layer-content :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
@@ -78,8 +88,19 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   transform-origin: 0 0;
 }
 
-.pdf-text-layer > :not(.markedContent),
-.pdf-text-layer .markedContent span:not(.markedContent) {
+.djvu-text-zone {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  display: block;
+  font-family: sans-serif;
+  overflow: visible;
+}
+
+.pdf-text-layer-content > :not(.markedContent),
+.pdf-text-layer-content .markedContent span:not(.markedContent) {
   --font-height: 0;
   --scale-x: 1;
   --rotate: 0deg;
@@ -88,11 +109,11 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
 
-.pdf-text-layer .markedContent {
+.pdf-text-layer-content .markedContent {
   display: contents;
 }
 
-.pdf-text-layer ::selection {
+.reader-text-layer ::selection {
   background: rgb(0 0 255 / 25%);
 }
 

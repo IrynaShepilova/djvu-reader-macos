@@ -13,7 +13,7 @@ import { ReaderDocument, TextLayerHandle } from '../../interfaces/reader-documen
   selector: 'app-pdf-text-layer',
   standalone: true,
   template: '',
-  host: { class: 'pdf-text-layer' },
+  host: { class: 'reader-text-layer' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PdfTextLayerComponent implements OnChanges, OnDestroy {
