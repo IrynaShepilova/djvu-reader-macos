@@ -11,6 +11,7 @@ export interface TabState {
   layoutMode: ReaderLayoutMode;
   fitMode: ReaderFitMode;
   zoom: number;
+  textSelectionEnabled: boolean;
   totalPages: number;
   loadingProgress: number;
   loadingDone: boolean;

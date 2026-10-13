@@ -842,6 +842,7 @@ export class TabsService {
       layoutMode: 'single',
       fitMode: 'width',
       zoom: 1,
+      textSelectionEnabled: false,
       totalPages: 0,
       loadingProgress: 0,
       loadingDone: false,
@@ -851,7 +852,7 @@ export class TabsService {
 
   updateReaderDisplay(
     tabId: string,
-    patch: Partial<Pick<TabState, 'layoutMode' | 'fitMode' | 'zoom'>>,
+    patch: Partial<Pick<TabState, 'layoutMode' | 'fitMode' | 'zoom' | 'textSelectionEnabled'>>,
   ) {
     const state = this.tabStates.get(tabId);
     if (!state) return;
@@ -868,6 +869,10 @@ export class TabsService {
     if (patch.zoom !== undefined) {
       changed ||= state.zoom !== patch.zoom;
       state.zoom = patch.zoom;
+    }
+    if (patch.textSelectionEnabled !== undefined) {
+      changed ||= state.textSelectionEnabled !== patch.textSelectionEnabled;
+      state.textSelectionEnabled = patch.textSelectionEnabled;
     }
 
     if (changed) {

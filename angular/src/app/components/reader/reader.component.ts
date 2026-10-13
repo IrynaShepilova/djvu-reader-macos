@@ -7,6 +7,7 @@ import { environment } from '../../../environments/environment';
 import {ReaderFitMode, ReaderLayoutMode, ReadingPosition, TabState} from '../../interfaces/tabState';
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
+import { MatIcon } from '@angular/material/icon';
 import {Subscription} from 'rxjs';
 import { PdfTextLayerComponent } from '../pdf-text-layer/pdf-text-layer.component';
 type PageMetadata = TabState['pages'][number];
@@ -47,6 +48,7 @@ interface PageGeometry {
   standalone: true,
   imports: [
     DecimalPipe,
+    MatIcon,
     PdfTextLayerComponent,
   ],
   templateUrl: './reader.component.html',
@@ -131,6 +133,10 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
   get zoom(): number {
     return this.state?.zoom ?? 1;
+  }
+
+  get textSelectionEnabled(): boolean {
+    return this.state?.textSelectionEnabled ?? false;
   }
 
   async ngOnInit() {
@@ -409,6 +415,12 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     this.changeLayout(() => {
       this.tabsService.updateReaderDisplay(this.tabId, { zoom: 1 });
+    });
+  }
+
+  toggleTextSelection() {
+    this.tabsService.updateReaderDisplay(this.tabId, {
+      textSelectionEnabled: !this.textSelectionEnabled,
     });
   }
 
