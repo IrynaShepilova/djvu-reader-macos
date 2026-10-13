@@ -117,6 +117,33 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   background: rgb(0 0 255 / 25%);
 }
 
+.document-link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pdf-link-layer-content {
+  position: absolute;
+  inset: 0;
+}
+
+.pdf-link {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pdf-link:focus-visible {
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+}
+
 .pdf-text-layer-content[data-main-rotation="90"] {
   transform: rotate(90deg) translateY(-100%);
 }

@@ -9,6 +9,11 @@ declare global {
         code?: string;
         volumePath?: string;
       }>;
+      openExternalUrl?: (url: string) => Promise<{
+        ok: boolean;
+        cancelled?: boolean;
+        code?: string;
+      }>;
       onOpenFile?: (callback: (filePath: string) => void) => () => void;
       onOpenFiles?: (callback: (filePaths: string[]) => void) => () => void;
       rendererReady?: () => void;

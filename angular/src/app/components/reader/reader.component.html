@@ -184,6 +184,16 @@
                   [height]="layout.pageHeight"
                 />
               }
+              @if (state.document; as document) {
+                <app-document-link-layer
+                  [readerDocument]="document"
+                  [pageNumber]="layout.page.index"
+                  [width]="layout.pageWidth"
+                  [height]="layout.pageHeight"
+                  (internalLink)="followInternalLink($event)"
+                  (externalLink)="openExternalLink($event)"
+                />
+              }
             </div>
           </div>
         }
@@ -228,6 +238,16 @@
                     [height]="left.height"
                   />
                 }
+                @if (state.document; as document) {
+                  <app-document-link-layer
+                    [readerDocument]="document"
+                    [pageNumber]="left.page.index"
+                    [width]="left.width"
+                    [height]="left.height"
+                    (internalLink)="followInternalLink($event)"
+                    (externalLink)="openExternalLink($event)"
+                  />
+                }
               </div>
             }
 
@@ -257,6 +277,16 @@
                     [pageNumber]="right.page.index"
                     [width]="right.width"
                     [height]="right.height"
+                  />
+                }
+                @if (state.document; as document) {
+                  <app-document-link-layer
+                    [readerDocument]="document"
+                    [pageNumber]="right.page.index"
+                    [width]="right.width"
+                    [height]="right.height"
+                    (internalLink)="followInternalLink($event)"
+                    (externalLink)="openExternalLink($event)"
                   />
                 }
               </div>

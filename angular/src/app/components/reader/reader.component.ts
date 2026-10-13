@@ -5,11 +5,12 @@ import {
 } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import {ReaderFitMode, ReaderLayoutMode, ReadingPosition, TabState} from '../../interfaces/tabState';
+import { InternalLinkTarget } from '../../interfaces/reader-document';
 import { TabsService } from '../../services/tabs.service';
 import {DecimalPipe} from '@angular/common';
-import { MatIcon } from '@angular/material/icon';
 import {Subscription} from 'rxjs';
 import { PdfTextLayerComponent } from '../pdf-text-layer/pdf-text-layer.component';
+import { DocumentLinkLayerComponent } from '../document-link-layer/document-link-layer.component';
 type PageMetadata = TabState['pages'][number];
 
 interface SinglePageLayout {
@@ -48,8 +49,8 @@ interface PageGeometry {
   standalone: true,
   imports: [
     DecimalPipe,
-    MatIcon,
     PdfTextLayerComponent,
+    DocumentLinkLayerComponent,
   ],
   templateUrl: './reader.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -169,7 +170,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     this.scheduleVirtualWindowUpdate();
   }
 
-  async goToPage(page: number, addToHistory = true) {
+  async goToPage(page: number, addToHistory = true, smooth = true) {
     const p = this.normalizePage(page);
 
     if (addToHistory) {
@@ -196,8 +197,8 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
 
     void this.tabsService.ensureThumbnailLoaded(this.tabId, p);
 
-    this.scrollToPage(p);
-    this.scrollToActiveThumbnail(p);
+    this.scrollToPage(p, smooth);
+    this.scrollToActiveThumbnail(p, smooth);
 
     void this.tabsService.ensurePagesLoaded(
       this.tabId,
@@ -1159,7 +1160,7 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
   }
 
   private async goToPosition(position: ReadingPosition, smooth = true) {
-    await this.goToPage(position.page, false);
+    await this.goToPage(position.page, false, smooth);
 
     this.tabsService.saveReadingPosition(
       this.tabId,
@@ -1167,6 +1168,33 @@ export class ReaderComponent implements OnInit, AfterViewInit, OnChanges, OnDest
     );
 
     await this.restoreReadingPosition(position.offsetRatio, smooth);
+  }
+
+  async followInternalLink(target: InternalLinkTarget): Promise<void> {
+    const position: ReadingPosition = {
+      page: this.normalizePage(target.page),
+      offsetRatio: Math.max(0, Math.min(1, target.offsetRatio)),
+    };
+    const from = this.tabsService.getSavedReadingPosition(this.tabId) ?? {
+      page: this.state.currentPage,
+      offsetRatio: 0,
+    };
+
+    this.tabsService.navigateInHistory(this.tabId, from, position);
+    await this.goToPosition(position, false);
+  }
+
+  openExternalLink(url: string): void {
+    const openExternalUrl = window.electronAPI?.openExternalUrl;
+    if (!openExternalUrl) return;
+
+    void openExternalUrl(url).then(result => {
+      if (!result.ok && !result.cancelled) {
+        console.warn('Unable to open external link:', result.code ?? 'UNKNOWN_ERROR');
+      }
+    }).catch(error => {
+      console.warn('Unable to open external link:', error);
+    });
   }
 
   async goBackHistory() {

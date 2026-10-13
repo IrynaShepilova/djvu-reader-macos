@@ -24,6 +24,35 @@ const OPEN_DEVTOOLS = DEV_URL || process.env.OPEN_DEVTOOLS === '1';
 
 let pendingOpenFile = null;
 
+function getAllowedExternalUrl(value) {
+    if (typeof value !== 'string') return null;
+
+    try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+    } catch {
+        return null;
+    }
+}
+
+function isApplicationUrl(value) {
+    try {
+        const target = new URL(value);
+        const applicationUrl = new URL(DEV_URL || PROD_START_URL);
+        return target.origin === applicationUrl.origin;
+    } catch {
+        return false;
+    }
+}
+
+function protectWindowNavigation(window) {
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    window.webContents.on('will-navigate', (event, url) => {
+        if (isApplicationUrl(url)) return;
+        event.preventDefault();
+    });
+}
+
 // --- single instance ---
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -137,6 +166,7 @@ async function createWindow() {
         'data:text/html,' +
         encodeURIComponent('<h3 style="font-family:sans-serif">Starting...</h3>')
     );
+    protectWindowNavigation(mainWindow);
 
     mainWindow.maximize();
     mainWindow.show();
@@ -344,5 +374,46 @@ ipcMain.handle('shell:show-item-in-folder', (_event, filePath) => {
             code: currentFileAccess.code || 'FILE_NOT_FOUND',
             volumePath: currentFileAccess.volumePath,
         };
+    }
+});
+
+ipcMain.handle('shell:open-external-url', async (event, value) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+        return { ok: false, code: 'UNAUTHORIZED' };
+    }
+
+    const url = getAllowedExternalUrl(value);
+    if (!url) {
+        return { ok: false, code: 'UNSUPPORTED_URL' };
+    }
+
+    let result;
+    try {
+        result = await dialog.showMessageBox(mainWindow, {
+            type: 'question',
+            buttons: ['Cancel', 'Open'],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+            message: 'Open external link?',
+            detail: url.href,
+        });
+    } catch {
+        return { ok: false, code: 'DIALOG_FAILED' };
+    }
+    if (result.response !== 1) {
+        return { ok: false, cancelled: true };
+    }
+
+    const approvedUrl = getAllowedExternalUrl(url.href);
+    if (!approvedUrl) {
+        return { ok: false, code: 'UNSUPPORTED_URL' };
+    }
+
+    try {
+        await shell.openExternal(approvedUrl.href);
+        return { ok: true };
+    } catch {
+        return { ok: false, code: 'OPEN_FAILED' };
     }
 });

@@ -28,6 +28,23 @@ export interface TextLayerHandle {
   destroy(): void;
 }
 
+export interface InternalLinkTarget {
+  page: number;
+  offsetRatio: number;
+}
+
+export interface LinkLayerOptions {
+  width: number;
+  height: number;
+  signal: AbortSignal;
+  onInternalLink: (target: InternalLinkTarget) => void;
+  onExternalLink?: (url: string) => void;
+}
+
+export interface LinkLayerHandle {
+  destroy(): void;
+}
+
 export interface ReaderDocument {
   readonly pageCount: number;
 
@@ -38,6 +55,11 @@ export interface ReaderDocument {
     container: HTMLElement,
     options: TextLayerOptions,
   ): Promise<TextLayerHandle | null>;
+  renderLinkLayer?(
+    pageNumber: number,
+    container: HTMLElement,
+    options: LinkLayerOptions,
+  ): Promise<LinkLayerHandle | null>;
   destroy(): void | Promise<void>;
 }
 
